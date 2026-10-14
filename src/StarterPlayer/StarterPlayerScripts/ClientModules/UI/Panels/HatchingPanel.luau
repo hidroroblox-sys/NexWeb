@@ -98,7 +98,9 @@ function HatchingPanel.Create(gui: ScreenGui): UIKit.Panel
 			})
 			UIKit.Label(card, {
 				Name = "Rarity",
-				Text = string.format("%s  •  Slot %d", rarity.Name, slot.Index),
+				Text = if slot.Mutation and GameConfig.MutationsById[slot.Mutation]
+					then string.format("%s • %s • Slot %d", rarity.Name, GameConfig.MutationsById[slot.Mutation].Name, slot.Index)
+					else string.format("%s  •  Slot %d", rarity.Name, slot.Index),
 				Font = Theme.Fonts.Title,
 				Color = rarity.Color,
 				Size = UDim2.new(0.4, -10, 0, 26),

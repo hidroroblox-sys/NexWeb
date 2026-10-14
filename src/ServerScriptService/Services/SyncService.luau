@@ -20,6 +20,8 @@ function SyncService.BuildSnapshot(data: DataService.PlayerData): Types.Snapshot
 			Index = tonumber(key) or 0,
 			EggId = slot.EggId,
 			AnimalId = slot.AnimalId,
+			Mutation = slot.Mutation,
+			Level = slot.Level,
 			HatchAt = slot.HatchAt,
 			HatchDuration = slot.HatchDuration,
 			Hatched = slot.Hatched,

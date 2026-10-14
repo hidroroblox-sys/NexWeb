@@ -3,7 +3,9 @@
 	TsunamiService: as ondas.
 	  • de tempos em tempos (aleatório entre MinInterval e MaxInterval) uma onda nasce
 	    no FIM do corredor e anda até a zona segura, onde some
-	  • antes de cada onda: aviso de WarningTime segundos (o cliente mostra e toca a sirene)
+	  • contador no topo da tela sempre mostra a próxima onda; sirene quando ela nasce
+	  • velocidades e cores iguais ao original: 85, 120, 140, 180, 220 (studs/s)
+	  • esconderijos: trincheiras entre as áreas e nichos VIP de vidro nas paredes
 	  • a posição da onda é uma CONTA (início + velocidade * tempo), igual no servidor e
 	    no cliente — o cliente desenha, o servidor decide quem morre
 	  • morte checada a cada frame (Heartbeat), NUNCA com .Touched:
@@ -17,6 +19,7 @@ local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local DataService = require(script.Parent.DataService)
+local GamePassService = require(script.Parent.GamePassService)
 local NotifyService = require(script.Parent.NotifyService)
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 local MapLayout = require(ReplicatedStorage.Shared.MapLayout)
@@ -58,12 +61,12 @@ function TsunamiService.GetFrontZ(wave: Types.WaveData, time: number): number
 	return wave.StartZ - wave.Speed * (time - wave.StartTime)
 end
 
--- Jogador escondido = abaixo do chão E dentro (no sentido Z) de um buraco
-local function isHidden(position: Vector3): boolean
-	if position.Y > MapLayout.FloorY - CONFIG.HideDepth then
-		return false
+-- Jogador escondido = dentro de uma trincheira (abaixo do chão) ou num nicho VIP (só quem é VIP)
+local function isHidden(player: Player, position: Vector3): boolean
+	if position.Y <= MapLayout.FloorY - CONFIG.HideDepth and MapLayout.IsInHole(position.Z, -1) then
+		return true
 	end
-	return MapLayout.IsInHole(position.Z, -1)
+	return MapLayout.IsInAlcove(position) and GamePassService.Owns(player, "VIP")
 end
 
 local function kill(player: Player, humanoid: Humanoid, root: BasePart, wave: Types.WaveData)
@@ -115,7 +118,7 @@ local function step()
 		local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
 		if humanoid and humanoid.Health > 0 and root and root:IsA("BasePart") then
 			local position = root.Position
-			if not MapLayout.IsSafeZ(position.Z) and not isHidden(position) then
+			if not MapLayout.IsSafeZ(position.Z) and not isHidden(player, position) then
 				for _, wave in waves do
 					local front = TsunamiService.GetFrontZ(wave, time)
 					if position.Z >= front and position.Z <= front + CONFIG.Thickness then

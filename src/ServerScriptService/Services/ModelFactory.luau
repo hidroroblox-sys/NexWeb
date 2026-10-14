@@ -236,4 +236,91 @@ function ModelFactory.MakeWeldable(model: Model)
 	end
 end
 
+-- ---------------------------------------------------------------------
+-- MUTAÇÃO: pinta o modelo, troca o material e põe brilho/partículas
+-- ---------------------------------------------------------------------
+
+function ModelFactory.ApplyMutation(model: Model, mutationId: string?)
+	if not mutationId then
+		return
+	end
+	local mutation = GameConfig.MutationsById[mutationId]
+	if not mutation then
+		return
+	end
+	for _, descendant in model:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.Color = descendant.Color:Lerp(mutation.Color, 0.6)
+			if mutation.Material and descendant.Name ~= "Eye" and descendant.Name ~= "Shine" then
+				descendant.Material = mutation.Material
+			end
+		end
+	end
+	local root = model.PrimaryPart
+	if not root then
+		return
+	end
+	local light = Instance.new("PointLight")
+	light.Color = mutation.Color
+	light.Range = 9
+	light.Brightness = 1.2
+	light.Parent = root
+	local sparkles = Instance.new("ParticleEmitter")
+	sparkles.Name = "Mutacao"
+	sparkles.Texture = "rbxasset://textures/particles/sparkles_main.dds"
+	sparkles.Color = ColorSequence.new(mutation.Color)
+	sparkles.LightEmission = 0.7
+	sparkles.Size = NumberSequence.new(0.35, 0)
+	sparkles.Lifetime = NumberRange.new(0.6, 1.2)
+	sparkles.Speed = NumberRange.new(1, 3)
+	sparkles.SpreadAngle = Vector2.new(180, 180)
+	sparkles.Rate = 8
+	sparkles.Parent = root
+end
+
+-- ---------------------------------------------------------------------
+-- NINHO SURPRESA: caixa dourada com "?" (abre no celeiro)
+-- ---------------------------------------------------------------------
+
+function ModelFactory.CreateLuckyNest(rarityId: string, scale: number?): Model
+	local rarity = GameConfig.RarityById[rarityId]
+	local s = scale or 1
+	local model = Instance.new("Model")
+	model.Name = "NinhoSurpresa"
+	local gold = GameConfig.LuckyNest.Color
+	local body = newPart(model, "Body", Vector3.new(2.8, 2.8, 2.8) * s, rarity.Color, CFrame.new())
+	body.Material = Enum.Material.SmoothPlastic
+	model.PrimaryPart = body
+	newPart(model, "Faixa", Vector3.new(2.9, 0.6, 2.9) * s, gold, CFrame.new())
+	newPart(model, "FaixaV", Vector3.new(0.6, 2.9, 2.9) * s, gold, CFrame.new())
+	for _, face in Enum.NormalId:GetEnumItems() do
+		local gui = Instance.new("SurfaceGui")
+		gui.Face = face
+		gui.LightInfluence = 0
+		gui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
+		gui.PixelsPerStud = 40
+		local label = Instance.new("TextLabel")
+		label.BackgroundTransparency = 1
+		label.Size = UDim2.fromScale(1, 1)
+		label.Font = Enum.Font.LuckiestGuy
+		label.TextScaled = true
+		label.Text = "?"
+		label.TextColor3 = Color3.new(1, 1, 1)
+		local stroke = Instance.new("UIStroke")
+		stroke.Thickness = 3
+		stroke.Color = Color3.fromRGB(28, 22, 40)
+		stroke.Parent = label
+		label.Parent = gui
+		gui.Parent = body
+	end
+	local light = Instance.new("PointLight")
+	light.Color = gold
+	light.Range = 10 * s
+	light.Brightness = 1.5
+	light.Parent = body
+	prepare(model, true)
+	model.ModelStreamingMode = Enum.ModelStreamingMode.Atomic
+	return model
+end
+
 return ModelFactory

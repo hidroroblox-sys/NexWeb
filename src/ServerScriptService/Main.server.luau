@@ -9,11 +9,14 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Services = script.Parent:WaitForChild("Services")
 local BarnService = require(Services.BarnService)
+local BatService = require(Services.BatService)
 local CarryService = require(Services.CarryService)
 local DataService = require(Services.DataService)
 local EggService = require(Services.EggService)
+local GamePassService = require(Services.GamePassService)
 local MapBuilder = require(Services.MapBuilder)
 local MovementService = require(Services.MovementService)
+local NotifyService = require(Services.NotifyService)
 local ShopService = require(Services.ShopService)
 local SyncService = require(Services.SyncService)
 local TsunamiService = require(Services.TsunamiService)
@@ -25,12 +28,18 @@ Players.CharacterAutoLoads = false
 
 MapBuilder.Build()
 DataService.Init()
+GamePassService.Init()
 SyncService.Init()
 BarnService.Init()
 EggService.Init()
 TsunamiService.Init()
 MovementService.Init()
 ShopService.Init()
+
+-- Comprou o Turbo durante o jogo: aplica na hora
+GamePassService.Changed:Connect(function(player)
+	MovementService.Apply(player)
+end)
 
 local function spawnCharacter(player: Player)
 	if player.Parent ~= nil and DataService.Get(player) then
@@ -54,6 +63,7 @@ local function onCharacterAdded(player: Player, character: Model)
 		return
 	end
 	MovementService.Apply(player)
+	BatService.Give(player)
 
 	-- Garante que nasce dentro do próprio celeiro
 	local root = character:WaitForChild("HumanoidRootPart", 10)
@@ -63,7 +73,13 @@ local function onCharacterAdded(player: Player, character: Model)
 	end
 
 	humanoid.Died:Once(function()
-		CarryService.OnDied(player)
+		-- Os ovos carregados caem no chão onde você morreu (qualquer um pode pegar)
+		local items = CarryService.TakeAll(player)
+		local deathRoot = character:FindFirstChild("HumanoidRootPart")
+		if #items > 0 and deathRoot and deathRoot:IsA("BasePart") then
+			EggService.DropItems(items, deathRoot.Position)
+			NotifyService.Notify(player, string.format("Você deixou cair %d ovo(s)! Corra para pegar de volta!", #items), "danger")
+		end
 		task.delay(GameConfig.Players.RespawnTime, spawnCharacter, player)
 	end)
 end
@@ -79,13 +95,14 @@ local function onPlayerAdded(player: Player)
 		return
 	end
 
+	GamePassService.Setup(player)
+	Wallet.Setup(player)
+	CarryService.Setup(player)
+
 	if not BarnService.Assign(player) then
 		player:Kick("Não há celeiros livres neste servidor. Tente outro!")
 		return
 	end
-
-	Wallet.Setup(player)
-	CarryService.Setup(player)
 
 	player.CharacterAdded:Connect(function(character)
 		onCharacterAdded(player, character)

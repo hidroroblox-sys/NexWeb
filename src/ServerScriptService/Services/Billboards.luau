@@ -51,25 +51,46 @@ local function newBillboard(name: string, size: UDim2, offsetY: number, maxDista
 	return gui
 end
 
--- Ovo no corredor: nome, raridade e $/s do animal (ou "???")
-function Billboards.WorldEgg(eggId: string, animalId: string): BillboardGui
+local function mutationText(mutationId: string?): (string?, Color3?)
+	if not mutationId then
+		return nil, nil
+	end
+	local mutation = GameConfig.MutationsById[mutationId]
+	if not mutation then
+		return nil, nil
+	end
+	return mutation.Name, mutation.Color
+end
+
+-- Ovo no corredor: nome, raridade, mutação e $/s do animal (ou "???")
+function Billboards.WorldEgg(eggId: string, animalId: string, mutationId: string?, lucky: boolean?): BillboardGui
 	local egg = GameConfig.EggsById[eggId]
 	local rarity = GameConfig.RarityById[egg.Rarity]
-	local gui = newBillboard("EggInfo", UDim2.fromScale(7, 2.6), 3.2, 70)
-	label(gui, "Name", egg.Name, Color3.new(1, 1, 1), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.38), UDim2.fromScale(0, 0))
-	label(gui, "Rarity", rarity.Name, rarity.Color, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.34), UDim2.fromScale(0, 0.36))
-	local income = label(gui, "Income", "???", Color3.fromRGB(110, 255, 80), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.3), UDim2.fromScale(0, 0.7))
-	income:SetAttribute("AnimalId", animalId)
-	CollectionService:AddTag(income, "EggIncomeLabel")
+	local gui = newBillboard("EggInfo", UDim2.fromScale(7, 3.2), 3.4, 80)
+	local title = if lucky then "Ninho Surpresa" else egg.Name
+	label(gui, "Name", title, Color3.new(1, 1, 1), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.3), UDim2.fromScale(0, 0))
+	label(gui, "Rarity", rarity.Name, rarity.Color, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.27), UDim2.fromScale(0, 0.28))
+	local mutation, mutationColor = mutationText(mutationId)
+	if mutation and mutationColor and not lucky then
+		label(gui, "Mutation", mutation, mutationColor, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.22), UDim2.fromScale(0, 0.54))
+	end
+	local income = label(gui, "Income", if lucky then "?" else "???", Color3.fromRGB(110, 255, 80), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.24), UDim2.fromScale(0, 0.76))
+	if not lucky then
+		income:SetAttribute("AnimalId", animalId)
+		income:SetAttribute("Mutation", mutationId)
+		CollectionService:AddTag(income, "EggIncomeLabel")
+	end
 	return gui
 end
 
 -- Ovo chocando no celeiro: nome + barra + "Choca em 2:30"
-function Billboards.Hatching(eggId: string, hatchAt: number, duration: number): BillboardGui
+function Billboards.Hatching(eggId: string, hatchAt: number, duration: number, mutationId: string?): BillboardGui
 	local egg = GameConfig.EggsById[eggId]
 	local rarity = GameConfig.RarityById[egg.Rarity]
 	local gui = newBillboard("HatchInfo", UDim2.fromScale(6.5, 2.4), 3, 60)
-	label(gui, "Name", egg.Name, rarity.Color, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.4), UDim2.fromScale(0, 0))
+	local mutation = mutationText(mutationId)
+	local title = if mutation then egg.Name .. " " .. mutation else egg.Name
+	label(gui, "Name", title, rarity.Color, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.4), UDim2.fromScale(0, 0))
 
 	local bar = Instance.new("Frame")
 	bar.Name = "Bar"
@@ -103,14 +124,17 @@ function Billboards.Hatching(eggId: string, hatchAt: number, duration: number): 
 	return gui
 end
 
--- Animal no celeiro: nome, raridade e $/s
-function Billboards.Animal(animalId: string, income: number): BillboardGui
+-- Animal no celeiro: nome, raridade (+mutação), $/s e nível
+function Billboards.Animal(animalId: string, income: number, level: number, mutationId: string?): BillboardGui
 	local animal = GameConfig.AnimalsById[animalId]
 	local rarity = GameConfig.RarityById[animal.Rarity]
-	local gui = newBillboard("AnimalInfo", UDim2.fromScale(7, 2.6), 3.6, 60)
-	label(gui, "Name", animal.Name, Color3.new(1, 1, 1), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.38), UDim2.fromScale(0, 0))
-	label(gui, "Rarity", rarity.Name, rarity.Color, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.32), UDim2.fromScale(0, 0.36))
-	label(gui, "Income", Format.PerSecond(income), Color3.fromRGB(110, 255, 80), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.32), UDim2.fromScale(0, 0.68))
+	local gui = newBillboard("AnimalInfo", UDim2.fromScale(7, 3.2), 4, 60)
+	label(gui, "Name", animal.Name, Color3.new(1, 1, 1), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.28), UDim2.fromScale(0, 0))
+	local mutation, mutationColor = mutationText(mutationId)
+	local rarityText = if mutation then rarity.Name .. " • " .. mutation else rarity.Name
+	label(gui, "Rarity", rarityText, mutationColor or rarity.Color, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.24), UDim2.fromScale(0, 0.27))
+	label(gui, "Income", Format.PerSecond(income), Color3.fromRGB(110, 255, 80), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.26), UDim2.fromScale(0, 0.5))
+	label(gui, "Level", "Nv. " .. level, Color3.fromRGB(255, 220, 90), Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.22), UDim2.fromScale(0, 0.77))
 	return gui
 end
 

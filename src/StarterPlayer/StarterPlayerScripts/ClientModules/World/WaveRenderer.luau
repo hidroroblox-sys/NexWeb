@@ -18,7 +18,6 @@ local Types = require(ReplicatedStorage.Shared.Types)
 local WaveRenderer = {}
 
 local CONFIG = GameConfig.Waves
-local WATER = Color3.fromRGB(30, 125, 220)
 local FOAM = Color3.fromRGB(235, 248, 255)
 
 local gameState = ReplicatedStorage:WaitForChild("GameState")
@@ -64,18 +63,30 @@ local function foamEmitter(parent: BasePart, face: Enum.NormalId, rate: number, 
 	emitter.Parent = parent
 end
 
--- Monta a onda com origem na FRENTE, embaixo, no meio (ela anda para -Z)
-local function buildWave(): Model
+local function typeOf(wave: Types.WaveData): GameConfig.WaveType
+	return GameConfig.WaveTypesById[wave.Type] or CONFIG.Types[1]
+end
+
+-- Monta a onda com origem na FRENTE, embaixo, no meio (ela anda para -Z).
+-- Cor e altura dependem do tipo (como no original: azul-claro ... roxo).
+local function buildWave(waveType: GameConfig.WaveType): Model
 	local model = Instance.new("Model")
-	model.Name = "Onda"
+	model.Name = "Onda_" .. waveType.Id
 	local width = MapLayout.CorridorWidth - 0.4
-	local height = CONFIG.Height
+	local height = waveType.Height
 	local thickness = CONFIG.Thickness
+	local water = waveType.Color
+	local light = water:Lerp(Color3.new(1, 1, 1), 0.45)
+	local dark = water:Lerp(Color3.new(0, 0, 0), 0.45)
 
-	local body = newPart(model, "Agua", Vector3.new(width, height, thickness), CFrame.new(0, height / 2, thickness / 2), WATER, 0.22)
+	local body = newPart(model, "Agua", Vector3.new(width, height, thickness), CFrame.new(0, height / 2, thickness / 2), water, 0.2)
 	body.Reflectance = 0.08
+	if waveType.Glow then
+		body.Material = Enum.Material.Neon
+		body.Transparency = 0.35
+	end
 
-	local face = newPart(model, "Frente", Vector3.new(width, height, 1), CFrame.new(0, height / 2, 0.2), Color3.fromRGB(120, 200, 255), 0.45)
+	local face = newPart(model, "Frente", Vector3.new(width, height, 1), CFrame.new(0, height / 2, 0.2), light, 0.45)
 	foamEmitter(face, Enum.NormalId.Front, 70, 4)
 
 	-- "Rolo" de espuma no topo e na base
@@ -87,7 +98,43 @@ local function buildWave(): Model
 	foamEmitter(base, Enum.NormalId.Front, 40, 3)
 
 	-- Faixa escura atrás para dar profundidade
-	newPart(model, "Fundo", Vector3.new(width, height * 0.8, 2), CFrame.new(0, height * 0.4, thickness), Color3.fromRGB(15, 70, 150), 0.3)
+	newPart(model, "Fundo", Vector3.new(width, height * 0.8, 2), CFrame.new(0, height * 0.4, thickness), dark, 0.3)
+
+	if waveType.Glow then
+		local glow = Instance.new("PointLight")
+		glow.Color = water
+		glow.Range = 60
+		glow.Brightness = 3
+		glow.Parent = body
+	end
+
+	-- Nome + emoji flutuando em cima da onda
+	local anchor = newPart(model, "Placa", Vector3.new(1, 1, 1), CFrame.new(0, height + 10, 4), water, 1)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.fromScale(30, 10)
+	billboard.MaxDistance = 1000
+	billboard.LightInfluence = 0
+	billboard.AlwaysOnTop = true
+	billboard.Parent = anchor
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Size = UDim2.fromScale(1, 0.55)
+	nameLabel.Font = Enum.Font.LuckiestGuy
+	nameLabel.TextScaled = true
+	nameLabel.Text = waveType.Name
+	nameLabel.TextColor3 = light
+	local stroke = Instance.new("UIStroke")
+	stroke.Thickness = 3
+	stroke.Color = Color3.fromRGB(28, 22, 40)
+	stroke.Parent = nameLabel
+	nameLabel.Parent = billboard
+	local emoji = Instance.new("TextLabel")
+	emoji.BackgroundTransparency = 1
+	emoji.Size = UDim2.fromScale(1, 0.45)
+	emoji.Position = UDim2.fromScale(0, 0.55)
+	emoji.TextScaled = true
+	emoji.Text = waveType.Emoji
+	emoji.Parent = billboard
 
 	-- O "pivô" do modelo é a frente/base/meio (as peças foram montadas em volta da origem)
 	model.WorldPivot = CFrame.new()
@@ -156,12 +203,13 @@ function WaveRenderer.Start()
 					visuals[wave.Id] = nil
 				end
 			else
+				local waveType = typeOf(wave)
 				if not model then
-					model = buildWave()
+					model = buildWave(waveType)
 					visuals[wave.Id] = model
 				end
 				-- some suavemente ao chegar na zona segura
-				local sink = math.clamp((MapLayout.CorridorStartZ + 25 - front) / 25, 0, 1) * CONFIG.Height
+				local sink = math.clamp((MapLayout.CorridorStartZ + 25 - front) / 25, 0, 1) * (waveType.Height + 12)
 				model:PivotTo(CFrame.new(0, MapLayout.FloorY - sink, math.min(front, MapLayout.CorridorEndZ)))
 			end
 		end

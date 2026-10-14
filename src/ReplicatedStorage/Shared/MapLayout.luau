@@ -13,7 +13,8 @@ local GameConfig = require(script.Parent.GameConfig)
 
 export type Zone = {
 	Index: number,
-	Rarity: GameConfig.Rarity,
+	Area: GameConfig.Area,
+	Rarity: GameConfig.Rarity?,
 	StartZ: number,
 	EndZ: number,
 }
@@ -24,9 +25,15 @@ export type Hole = {
 	ZoneIndex: number,
 }
 
+export type Alcove = {
+	ZoneIndex: number,
+	Side: number, -- -1 esquerda, 1 direita
+	CenterZ: number,
+}
+
 export type BarnLayout = {
 	Index: number,
-	CFrame: CFrame, -- centro do chão do celeiro; LookVector aponta para a porta (para o corredor)
+	CFrame: CFrame, -- centro do chão do celeiro; LookVector aponta para a porta
 }
 
 local Map = GameConfig.Map
@@ -40,18 +47,19 @@ MapLayout.SafeZoneStartZ = Map.SafeZoneStartZ
 MapLayout.CorridorStartZ = Map.SafeZoneStartZ + Map.SafeZoneLength -- fim da zona segura
 
 -- ---------------------------------------------------------------------
--- Zonas
+-- Áreas
 -- ---------------------------------------------------------------------
 
 local zones: { Zone } = {}
 do
 	local z = MapLayout.CorridorStartZ
-	for index, rarity in GameConfig.Rarities do
+	for index, areaConfig in GameConfig.Areas do
 		local zone: Zone = {
 			Index = index,
-			Rarity = rarity,
+			Area = areaConfig,
+			Rarity = if areaConfig.Rarity then GameConfig.RarityById[areaConfig.Rarity] else nil,
 			StartZ = z,
-			EndZ = z + rarity.Zone.Length,
+			EndZ = z + areaConfig.Length,
 		}
 		table.insert(zones, zone)
 		z = zone.EndZ
@@ -71,34 +79,29 @@ function MapLayout.GetZoneAtZ(z: number): Zone?
 end
 
 -- ---------------------------------------------------------------------
--- Buracos: espaçamento cresce a cada zona; nunca atravessam a divisa
+-- Trincheiras: no começo de cada área (a partir da 2ª) e no meio das longas
 -- ---------------------------------------------------------------------
 
 local holes: { Hole } = {}
 do
 	local length = Map.HoleLength
-	local z = MapLayout.CorridorStartZ + Map.FirstHoleOffset
-	local zone = MapLayout.GetZoneAtZ(z)
-	while zone do
-		if z + length > zone.EndZ - 2 then
-			-- não cabe nesta zona: pula para o começo da próxima
-			local nextZone = zones[zone.Index + 1]
-			if not nextZone then
-				break
-			end
-			zone = nextZone
-			z = nextZone.StartZ + 6
-		else
-			table.insert(holes, { StartZ = z, EndZ = z + length, ZoneIndex = zone.Index })
-			z += length + zone.Rarity.Zone.HoleSpacing
-			zone = MapLayout.GetZoneAtZ(z)
+	for index, zone in zones do
+		if index >= 2 then
+			table.insert(holes, { StartZ = zone.StartZ + 2, EndZ = zone.StartZ + 2 + length, ZoneIndex = index })
+		end
+		if zone.Area.Length >= Map.MidTrenchMinLength then
+			local middle = (zone.StartZ + zone.EndZ) / 2
+			table.insert(holes, { StartZ = middle - length / 2, EndZ = middle + length / 2, ZoneIndex = index })
 		end
 	end
+	table.sort(holes, function(a, b)
+		return a.StartZ < b.StartZ
+	end)
 end
 
 MapLayout.Holes = holes
 
--- Está dentro (no sentido Z) de algum buraco? "margin" encolhe a área.
+-- Está dentro (no sentido Z) de alguma trincheira? "margin" encolhe a área.
 function MapLayout.IsInHole(z: number, margin: number?): boolean
 	local m = margin or 0
 	for _, hole in holes do
@@ -109,7 +112,6 @@ function MapLayout.IsInHole(z: number, margin: number?): boolean
 	return false
 end
 
--- Perto de algum buraco? (usado para não colocar ninho na beirada)
 function MapLayout.IsNearHole(z: number, distance: number): boolean
 	for _, hole in holes do
 		if z >= hole.StartZ - distance and z <= hole.EndZ + distance then
@@ -119,9 +121,44 @@ function MapLayout.IsNearHole(z: number, distance: number): boolean
 	return false
 end
 
--- Área sem tsunami: toda a área inicial + zona segura
+-- Área sem tsunami: toda a área inicial + zona segura (e atrás do fim do corredor)
 function MapLayout.IsSafeZ(z: number): boolean
-	return z < MapLayout.CorridorStartZ
+	return z < MapLayout.CorridorStartZ or z > MapLayout.CorridorEndZ
+end
+
+-- ---------------------------------------------------------------------
+-- Nichos VIP (portas de vidro nas paredes, um de cada lado por área)
+-- ---------------------------------------------------------------------
+
+local alcoves: { Alcove } = {}
+do
+	for index, zone in zones do
+		if index >= 2 then
+			local centerZ = zone.StartZ + math.max(44, zone.Area.Length * 0.28)
+			for _, side in { -1, 1 } do
+				table.insert(alcoves, { ZoneIndex = index, Side = side, CenterZ = centerZ })
+			end
+		end
+	end
+end
+
+MapLayout.Alcoves = alcoves
+
+-- Está dentro de um nicho VIP?
+function MapLayout.IsInAlcove(position: Vector3): boolean
+	if math.abs(position.X) < MapLayout.HalfWidth + 1 then
+		return false
+	end
+	if position.Y > MapLayout.FloorY + Map.VipAlcoveHeight + 2 then
+		return false
+	end
+	local side = if position.X < 0 then -1 else 1
+	for _, alcove in alcoves do
+		if alcove.Side == side and math.abs(position.Z - alcove.CenterZ) <= Map.VipAlcoveWidth / 2 then
+			return true
+		end
+	end
+	return false
 end
 
 -- ---------------------------------------------------------------------
@@ -135,7 +172,7 @@ do
 	for _, zone in zones do
 		local list: { Vector3 } = {}
 		local tries = 0
-		while #list < zone.Rarity.Zone.NestCount and tries < 600 do
+		while #list < zone.Area.NestCount and tries < 800 do
 			tries += 1
 			local z = rng:NextNumber(zone.StartZ + 6, zone.EndZ - 6)
 			local x = rng:NextNumber(-edge, edge)
@@ -157,6 +194,13 @@ do
 end
 
 MapLayout.Nests = nests
+
+-- Pedestal do ovo celestial: meio da última área, longe das trincheiras
+do
+	local last = zones[#zones]
+	local z = last.StartZ + last.Area.Length * 0.75
+	MapLayout.CelestialPosition = Vector3.new(0, MapLayout.FloorY, z)
+end
 
 -- ---------------------------------------------------------------------
 -- Celeiros em meio-círculo virados para a entrada do corredor
@@ -180,26 +224,51 @@ do
 end
 
 MapLayout.Barns = barns
+MapLayout.FloorCount = math.ceil(GameConfig.Barn.MaxSlots / GameConfig.Barn.SlotsPerFloor)
+
+-- Altura (local) do chão de um andar (1 = térreo)
+function MapLayout.FloorHeight(floor: number): number
+	return (floor - 1) * Map.FloorHeight
+end
 
 -- Posição LOCAL (dentro do celeiro) do ninho e do coletor de um slot.
--- Slot 1 = esquerda da porta, 2 = direita da porta, 3 = esquerda 2ª fileira...
+-- Por andar: 2 colunas x 5 fileiras; slot 1 = esquerda da porta, 2 = direita...
 function MapLayout.GetSlotOffsets(slotIndex: number): (Vector3, Vector3)
-	local row = math.ceil(slotIndex / 2) - 1
-	local side = if slotIndex % 2 == 1 then -1 else 1
+	local perFloor = GameConfig.Barn.SlotsPerFloor
+	local floor = math.ceil(slotIndex / perFloor)
+	local inFloor = (slotIndex - 1) % perFloor + 1
+	local row = math.ceil(inFloor / 2) - 1
+	local side = if inFloor % 2 == 1 then -1 else 1
+	local y = MapLayout.FloorHeight(floor)
 	local z = Map.FirstRowZ + row * Map.RowSpacing
 	-- LookVector do celeiro = -Z local, então a porta fica em Z negativo
-	local pen = Vector3.new(side * Map.SlotColumnX, 0, z)
-	local pad = Vector3.new(side * Map.PadColumnX, 0, z)
+	local pen = Vector3.new(side * Map.SlotColumnX, y, z)
+	local pad = Vector3.new(side * Map.PadColumnX, y, z)
 	return pen, pad
 end
 
--- Ponto dentro do celeiro? (posição em coordenadas locais do celeiro)
+-- Elevadores (no fundo do celeiro): sobe do andar f para f+1, desce de f para f-1
+function MapLayout.GetElevatorOffsets(floor: number): (Vector3, Vector3)
+	local y = MapLayout.FloorHeight(floor)
+	local back = Map.BarnSize.Z / 2 - 5
+	return Vector3.new(-5, y, back), Vector3.new(5, y, back)
+end
+
+-- Onde o jogador aparece ao chegar num andar
+function MapLayout.GetFloorArrival(floor: number): Vector3
+	return Vector3.new(0, MapLayout.FloorHeight(floor) + 3.5, Map.BarnSize.Z / 2 - 13)
+end
+
+-- Placa de comprar slot (fora do celeiro, ao lado da porta)
+MapLayout.SlotSignOffset = Vector3.new(Map.BarnSize.X / 2 + 3, 0, -Map.BarnSize.Z / 2 - 4)
+
+-- Ponto dentro do celeiro? (posição em coordenadas locais do celeiro, qualquer andar)
 function MapLayout.IsInsideBarn(localPosition: Vector3): boolean
 	local size = Map.BarnSize
 	return math.abs(localPosition.X) <= size.X / 2
 		and localPosition.Z >= -size.Z / 2 - 3
 		and localPosition.Z <= size.Z / 2
-		and localPosition.Y < size.Y + 6
+		and localPosition.Y < MapLayout.FloorHeight(MapLayout.FloorCount) + size.Y + 6
 end
 
 return MapLayout

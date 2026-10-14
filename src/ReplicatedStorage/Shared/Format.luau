@@ -12,7 +12,10 @@ local GameConfig = require(script.Parent.GameConfig)
 
 local Format = {}
 
-local SUFFIXES = { "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc" }
+local SUFFIXES = {
+	"K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc",
+	"Ud", "Dd", "Td", "Qad", "Qid", "Sxd", "Spd", "Ocd", "Nod", "Vg",
+}
 
 -- 1234567 -> "1,234,567"
 function Format.Commas(value: number): string
@@ -32,6 +35,9 @@ end
 function Format.Number(value: number): string
 	if value ~= value then
 		return "0"
+	end
+	if value == math.huge then
+		return "∞"
 	end
 	if math.abs(value) < GameConfig.UI.AbbreviateFrom then
 		return Format.Commas(value)

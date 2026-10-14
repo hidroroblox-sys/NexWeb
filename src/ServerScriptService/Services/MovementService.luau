@@ -10,6 +10,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DataService = require(script.Parent.DataService)
+local GamePassService = require(script.Parent.GamePassService)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 
@@ -28,7 +29,7 @@ local trackers: { [Player]: Tracker } = {}
 function MovementService.GetWalkSpeed(player: Player): number
 	local profile = DataService.Get(player)
 	local level = if profile then profile.Data.SpeedLevel else 0
-	return Formulas.WalkSpeed(level)
+	return Formulas.WalkSpeed(level, GamePassService.Owns(player, "SpeedBoost"))
 end
 
 function MovementService.Apply(player: Player)

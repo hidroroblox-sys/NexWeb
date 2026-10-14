@@ -1,5 +1,7 @@
 --!strict
--- ShopPanel: LOJA — velocidade (+1/+10), carregar mais ovos e slots do celeiro.
+-- ShopPanel: UPGRADES (abre ao pisar no anel ciano, como no original)
+--   • Velocidade: pacotes +1, +5 e +10 (o +10 sai pela metade do preço)
+--   • Carregar: +1 ovo por viagem (até 7)
 -- O cliente só PEDE; o servidor confere o dinheiro e aplica.
 
 local Players = game:GetService("Players")
@@ -27,16 +29,16 @@ end
 type CardParts = { Card: Frame, Info: TextLabel }
 
 local function upgradeCard(parent: Instance, order: number, icon: string, color: Color3, title: string): CardParts
-	local card = UIKit.Card(parent, title, 104, order)
-	UIKit.Badge(card, icon, color, UDim2.fromOffset(74, 74), UDim2.fromOffset(12, 15))
+	local card = UIKit.Card(parent, title, 112, order)
+	UIKit.Badge(card, icon, color, UDim2.fromOffset(74, 74), UDim2.fromOffset(12, 19))
 	UIKit.Label(card, {
 		Name = "Title",
 		Text = title,
 		Font = Theme.Fonts.Title,
 		Color = Colors.Ink,
 		Stroke = 0,
-		Size = UDim2.new(0.42, -40, 0, 34),
-		Position = UDim2.fromOffset(98, 12),
+		Size = UDim2.new(0.34, -20, 0, 34),
+		Position = UDim2.fromOffset(98, 14),
 		XAlign = Enum.TextXAlignment.Left,
 		MaxTextSize = 28,
 	})
@@ -45,11 +47,11 @@ local function upgradeCard(parent: Instance, order: number, icon: string, color:
 		Text = "",
 		Color = Colors.Muted,
 		Stroke = 0,
-		Size = UDim2.new(0.42, -40, 0, 44),
-		Position = UDim2.fromOffset(98, 48),
+		Size = UDim2.new(0.34, -20, 0, 48),
+		Position = UDim2.fromOffset(98, 50),
 		XAlign = Enum.TextXAlignment.Left,
 		YAlign = Enum.TextYAlignment.Top,
-		MaxTextSize = 20,
+		MaxTextSize = 19,
 	})
 	return { Card = card, Info = info }
 end
@@ -75,13 +77,28 @@ local function buy(button: UIKit.Button, upgradeId: string, amount: number, refr
 	refresh()
 end
 
-function ShopPanel.Create(gui: ScreenGui): UIKit.Panel
-	local panel = UIKit.Panel(gui, {
-		Name = "LojaPanel",
-		Title = "LOJA",
-		Icon = "Shop",
+local function greenButton(parent: Instance, name: string, width: number, offsetX: number): UIKit.Button
+	return UIKit.Button({
+		Name = name,
+		Parent = parent,
+		Size = UDim2.fromOffset(width, 76),
+		Position = UDim2.new(1, -offsetX, 0.5, 0),
+		AnchorPoint = Vector2.new(1, 0.5),
 		Color = Colors.Green,
 		DarkColor = Colors.GreenDark,
+		Text = "",
+		Layout = "Text",
+		MaxTextSize = 20,
+	})
+end
+
+function ShopPanel.Create(gui: ScreenGui): UIKit.Panel
+	local panel = UIKit.Panel(gui, {
+		Name = "UpgradesPanel",
+		Title = "UPGRADES",
+		Icon = "Speed",
+		Color = Color3.fromRGB(40, 200, 235),
+		DarkColor = Color3.fromRGB(20, 120, 160),
 	})
 
 	local scroll = UIKit.Scroll(panel.Body, UDim2.fromScale(1, 1))
@@ -91,91 +108,51 @@ function ShopPanel.Create(gui: ScreenGui): UIKit.Panel
 	padding.PaddingBottom = UDim.new(0, 10)
 	padding.Parent = scroll
 
-	local refresh: () -> ()
-
-	-- Velocidade
+	-- Velocidade: +1 / +5 / +10
 	local speed = upgradeCard(scroll, 1, "Speed", Colors.Yellow, "Velocidade")
-	local speed10 = UIKit.Button({
-		Name = "Speed10",
-		Parent = speed.Card,
-		Size = UDim2.fromOffset(124, 72),
-		Position = UDim2.new(1, -12, 0.5, 0),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Color = Colors.Green,
-		DarkColor = Colors.GreenDark,
-		Text = "+10",
-		Layout = "Text",
-		MaxTextSize = 22,
-		OnClick = function() end,
-	})
-	local speed1 = UIKit.Button({
-		Name = "Speed1",
-		Parent = speed.Card,
-		Size = UDim2.fromOffset(124, 72),
-		Position = UDim2.new(1, -146, 0.5, 0),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Color = Colors.Green,
-		DarkColor = Colors.GreenDark,
-		Text = "+1",
-		Layout = "Text",
-		MaxTextSize = 22,
-		OnClick = function() end,
-	})
+	local speed10 = greenButton(speed.Card, "Speed10", 112, 12)
+	local speed5 = greenButton(speed.Card, "Speed5", 112, 132)
+	local speed1 = greenButton(speed.Card, "Speed1", 112, 252)
 
 	-- Carregar mais ovos
-	local carry = upgradeCard(scroll, 2, "Carry", Colors.Orange, "Carregar Ovos")
-	local carryButton = UIKit.Button({
-		Name = "Carry",
-		Parent = carry.Card,
-		Size = UDim2.fromOffset(150, 72),
-		Position = UDim2.new(1, -12, 0.5, 0),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Color = Colors.Green,
-		DarkColor = Colors.GreenDark,
-		Text = "+1",
-		Layout = "Text",
-		MaxTextSize = 22,
-	})
+	local carry = upgradeCard(scroll, 2, "💪", Colors.Orange, "Carregar")
+	local carryButton = greenButton(carry.Card, "Carry", 150, 12)
 
-	-- Slots do celeiro
-	local slots = upgradeCard(scroll, 3, "Slots", Colors.Purple, "Slots do Celeiro")
-	local slotsButton = UIKit.Button({
-		Name = "Slots",
-		Parent = slots.Card,
-		Size = UDim2.fromOffset(150, 72),
-		Position = UDim2.new(1, -12, 0.5, 0),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Color = Colors.Green,
-		DarkColor = Colors.GreenDark,
-		Text = "+1",
-		Layout = "Text",
-		MaxTextSize = 22,
+	-- Dica dos slots (a compra é na placa do celeiro, como no original)
+	local tip = UIKit.Label(scroll, {
+		Name = "Dica",
+		Text = "📦 Mais slots: use a placa verde na frente do seu celeiro!",
+		Color = Colors.Muted,
+		Stroke = 0,
+		Size = UDim2.new(1, -12, 0, 30),
+		MaxTextSize = 20,
+		LayoutOrder = 3,
 	})
+	tip.TextWrapped = true
 
-	refresh = function()
+	local function refresh()
 		local money = attribute("Money", 0)
 		local level = attribute("SpeedLevel", 0)
 		local capacity = attribute("CarryCapacity", GameConfig.Carry.Start)
-		local barnSlots = attribute("BarnSlots", GameConfig.Barn.StartSlots)
 
-		-- Velocidade
-		speed.Info.Text = string.format("Nível %d  •  Velocidade %d", level, Formulas.WalkSpeed(level))
-		local price1, levels1 = Formulas.SpeedPurchase(level, 1)
-		local price10, levels10 = Formulas.SpeedPurchase(level, 10)
-		if levels1 <= 0 then
-			speed1.SetText("MÁX")
-			speed1.SetEnabled(false)
-			speed10.SetText("MÁX")
-			speed10.SetEnabled(false)
-		else
-			speed1.SetText("+1\n" .. Format.Money(price1))
-			speed1.SetEnabled(money >= price1)
-			speed10.SetText(string.format("+%d\n%s", levels10, Format.Money(price10)))
-			speed10.SetEnabled(money >= price10)
+		speed.Info.Text = string.format("Velocidade atual: %d", Formulas.WalkSpeed(level))
+		local packs: { { Button: UIKit.Button, Amount: number } } = {
+			{ Button = speed1, Amount = 1 },
+			{ Button = speed5, Amount = 5 },
+			{ Button = speed10, Amount = 10 },
+		}
+		for _, entry in packs do
+			local price, levels = Formulas.SpeedPurchase(level, entry.Amount)
+			if levels <= 0 then
+				entry.Button.SetText("MÁX")
+				entry.Button.SetEnabled(false)
+			else
+				entry.Button.SetText(string.format("+%d\n%s", levels, Format.Money(price)))
+				entry.Button.SetEnabled(money >= price)
+			end
 		end
 
-		-- Carregar
-		carry.Info.Text = string.format("Você carrega %d ovo(s) por vez  •  máx. %d", capacity, GameConfig.Carry.Max)
+		carry.Info.Text = string.format("Você carrega %d ovo(s) por vez • máx. %d", capacity, GameConfig.Carry.Max)
 		local carryPrice = Formulas.CarryPrice(capacity)
 		if carryPrice then
 			carryButton.SetText("+1 ovo\n" .. Format.Money(carryPrice))
@@ -185,23 +162,14 @@ function ShopPanel.Create(gui: ScreenGui): UIKit.Panel
 			carryButton.SetEnabled(false)
 		end
 
-		-- Slots
-		slots.Info.Text = string.format("%d de %d lugares no celeiro", barnSlots, GameConfig.Barn.MaxSlots)
-		local slotPrice = Formulas.SlotPrice(barnSlots)
-		if slotPrice then
-			slotsButton.SetText("+1 slot\n" .. Format.Money(slotPrice))
-			slotsButton.SetEnabled(money >= slotPrice)
-		else
-			slotsButton.SetText("MÁXIMO")
-			slotsButton.SetEnabled(false)
-		end
-
 		panel.Subtitle.Text = Format.Money(money)
 	end
 
-	-- Liga os cliques (precisam do refresh)
 	speed1.Face.Activated:Connect(function()
 		buy(speed1, "Speed", 1, refresh)
+	end)
+	speed5.Face.Activated:Connect(function()
+		buy(speed5, "Speed", 5, refresh)
 	end)
 	speed10.Face.Activated:Connect(function()
 		buy(speed10, "Speed", 10, refresh)
@@ -209,11 +177,8 @@ function ShopPanel.Create(gui: ScreenGui): UIKit.Panel
 	carryButton.Face.Activated:Connect(function()
 		buy(carryButton, "Carry", 1, refresh)
 	end)
-	slotsButton.Face.Activated:Connect(function()
-		buy(slotsButton, "Slots", 1, refresh)
-	end)
 
-	for _, name in { "Money", "SpeedLevel", "CarryCapacity", "BarnSlots" } do
+	for _, name in { "Money", "SpeedLevel", "CarryCapacity" } do
 		player:GetAttributeChangedSignal(name):Connect(refresh)
 	end
 	refresh()

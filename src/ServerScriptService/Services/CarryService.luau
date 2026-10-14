@@ -10,12 +10,13 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local DataService = require(script.Parent.DataService)
 local ModelFactory = require(script.Parent.ModelFactory)
-local NotifyService = require(script.Parent.NotifyService)
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 
 export type CarriedEgg = {
 	EggId: string,
 	AnimalId: string, -- o animal já vem sorteado desde que o ovo nasceu
+	Mutation: string?,
+	Lucky: boolean?, -- é um Ninho Surpresa (abre no celeiro)
 }
 
 local CarryService = {}
@@ -52,7 +53,13 @@ local function refreshVisuals(player: Player)
 	end
 	local models = visuals[player]
 	for index, item in list do
-		local model = ModelFactory.CreateEgg(item.EggId, 0.45)
+		local model: Model
+		if item.Lucky then
+			model = ModelFactory.CreateLuckyNest(GameConfig.EggsById[item.EggId].Rarity, 0.42)
+		else
+			model = ModelFactory.CreateEgg(item.EggId, 0.45)
+			ModelFactory.ApplyMutation(model, item.Mutation)
+		end
 		ModelFactory.MakeWeldable(model)
 		local root = model.PrimaryPart
 		if root then
@@ -114,20 +121,22 @@ function CarryService.TakeOne(player: Player): CarriedEgg?
 	return item
 end
 
--- Perde tudo (morte / saída do jogo)
+-- Tira tudo da mão (para derrubar no chão quando morre ou leva tacada)
+function CarryService.TakeAll(player: Player): { CarriedEgg }
+	local list = carried[player] or {}
+	carried[player] = {}
+	updateAttribute(player)
+	clearVisuals(player)
+	return list
+end
+
+-- Perde tudo (saída do jogo)
 function CarryService.Clear(player: Player)
 	carried[player] = {}
 	updateAttribute(player)
 	clearVisuals(player)
 end
 
-function CarryService.OnDied(player: Player)
-	local lost = CarryService.Count(player)
-	CarryService.Clear(player)
-	if lost > 0 then
-		NotifyService.Notify(player, string.format("Você perdeu %d ovo(s)! 😢", lost), "danger")
-	end
-end
 
 function CarryService.Setup(player: Player)
 	carried[player] = {}

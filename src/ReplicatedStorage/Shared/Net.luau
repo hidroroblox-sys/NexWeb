@@ -15,6 +15,8 @@ local Net = {
 	RequestSync = remotes:WaitForChild("RequestSync") :: RemoteEvent,
 	BuyUpgrade = remotes:WaitForChild("BuyUpgrade") :: RemoteFunction,
 	SellAnimal = remotes:WaitForChild("SellAnimal") :: RemoteFunction,
+	LevelUp = remotes:WaitForChild("LevelUp") :: RemoteFunction,
+	Rebirth = remotes:WaitForChild("Rebirth") :: RemoteFunction,
 }
 
 return Net

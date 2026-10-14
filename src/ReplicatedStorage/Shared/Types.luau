@@ -5,6 +5,8 @@ export type SlotSnapshot = {
 	Index: number,
 	EggId: string,
 	AnimalId: string,
+	Mutation: string?,
+	Level: number,
 	HatchAt: number, -- os.time() em que o ovo choca
 	HatchDuration: number,
 	Hatched: boolean,

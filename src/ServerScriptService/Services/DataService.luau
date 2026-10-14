@@ -18,6 +18,8 @@ local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 export type SlotData = {
 	EggId: string,
 	AnimalId: string,
+	Mutation: string?, -- id da mutação (nil = normal)
+	Level: number, -- nível do animal (botão "Subir nível")
 	HatchAt: number, -- os.time() em que vai chocar (continua contando offline)
 	HatchDuration: number,
 	Hatched: boolean,
@@ -40,6 +42,7 @@ export type PlayerData = {
 	Slots: { [string]: SlotData }, -- chave = número do slot em texto ("1", "2"...)
 	Index: { [string]: boolean }, -- animais já chocados
 	Stats: Stats,
+	LastOnline: number, -- os.time() do último salvamento (renda offline)
 }
 
 export type Profile = {
@@ -79,6 +82,7 @@ local function defaultData(): PlayerData
 		Slots = {},
 		Index = {},
 		Stats = { EggsCollected = 0, EggsHatched = 0, Deaths = 0 },
+		LastOnline = 0,
 	}
 end
 
@@ -125,9 +129,14 @@ local function sanitize(raw: any): PlayerData
 				and GameConfig.EggsById[slot.EggId]
 				and GameConfig.AnimalsById[slot.AnimalId]
 			then
+				local mutation = if typeof(slot.Mutation) == "string" and GameConfig.MutationsById[slot.Mutation]
+					then slot.Mutation
+					else nil
 				data.Slots[tostring(index)] = {
 					EggId = slot.EggId,
 					AnimalId = slot.AnimalId,
+					Mutation = mutation,
+					Level = math.clamp(math.floor(number(slot.Level, 1)), 1, GameConfig.Level.MaxLevel),
 					HatchAt = number(slot.HatchAt, 0),
 					HatchDuration = math.max(1, number(slot.HatchDuration, 60)),
 					Hatched = slot.Hatched == true,
@@ -150,6 +159,8 @@ local function sanitize(raw: any): PlayerData
 		data.Stats.EggsHatched = math.max(0, number(raw.Stats.EggsHatched, 0))
 		data.Stats.Deaths = math.max(0, number(raw.Stats.Deaths, 0))
 	end
+
+	data.LastOnline = math.max(0, number(raw.LastOnline, 0))
 
 	return data
 end
@@ -222,6 +233,7 @@ local function save(player: Player, profile: Profile): boolean
 		task.wait(0.1)
 	end
 	profile.Saving = true
+	profile.Data.LastOnline = os.time()
 	local success = false
 	for attempt = 1, CONFIG.MaxRetries do
 		local ok, err = pcall(function()

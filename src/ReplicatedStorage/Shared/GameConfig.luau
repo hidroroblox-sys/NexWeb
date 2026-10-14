@@ -4,14 +4,18 @@
 	==========
 	TODOS os números do jogo ficam aqui. Para balancear, mude só este arquivo.
 
+	Os valores seguem o "Escape Tsunami For Brainrots" (pesquisa em reports/):
+	ondas 85/120/140/180/220, Speed ×1,17 por nível com pacotes +1/+5/+10,
+	carry 1→7, base com 10 slots e um andar novo a cada 10, rebirth por Speed
+	(40, 50, 60...) com 1,5x a 11x, mutações, ninhos surpresa e Celestial a cada 15 min.
+
 	  • Tempos em SEGUNDOS (60 = 1 minuto, 3600 = 1 hora)
 	  • Distâncias em STUDS
 	  • Cores em Color3.fromRGB(vermelho, verde, azul)
 
 	Trocar o placeholder pelo seu modelo 3D:
 	  coloque o modelo em ReplicatedStorage > Assets > Eggs (ou Animals)
-	  com o MESMO nome do campo "Model" abaixo. O código usa o seu modelo
-	  automaticamente; se não achar, cria o placeholder.
+	  com o MESMO nome do campo "Model" abaixo.
 ]]
 
 local GameConfig = {}
@@ -20,30 +24,29 @@ local GameConfig = {}
 -- TIPOS (ajudam o editor a achar erros — pode ignorar)
 -- =====================================================================
 
-export type ZoneConfig = {
-	Biome: string, -- nome do bioma (só informativo)
-	Length: number, -- comprimento da zona
-	HoleSpacing: number, -- chão entre um buraco e o próximo (quanto maior, mais difícil)
-	MaxEggs: number, -- máximo de ovos ao mesmo tempo nesta zona
-	SpawnInterval: number, -- a cada quantos segundos nasce um ovo novo (se houver espaço)
-	NestCount: number, -- quantos ninhos existem na zona
-	FloorColor: Color3,
-	FloorMaterial: Enum.Material,
-	WallColor: Color3,
-	RecommendedSpeed: string, -- texto mostrado na placa da zona
-	Rainbow: boolean?, -- chão com listras de arco-íris
-}
-
 export type Rarity = {
 	Id: string,
 	Name: string,
-	Order: number, -- 1 = mais comum ... 10 = mais raro
+	Order: number, -- 1 = mais comum
 	Color: Color3, -- cor do texto da raridade
 	HatchTime: number, -- segundos para o ovo chocar
-	Zone: ZoneConfig,
 }
 
-export type AnimalChance = { Animal: string, Chance: number }
+export type Area = {
+	Id: string,
+	Name: string,
+	Rarity: string?, -- raridade dos ovos que nascem aqui (nil = não nasce nada)
+	Length: number, -- comprimento da área no corredor
+	MaxEggs: number, -- máximo de ovos ao mesmo tempo
+	SpawnInterval: number, -- a cada quantos segundos nasce um ovo (se houver espaço)
+	NestCount: number, -- quantos ninhos existem na área
+	FloorColor: Color3,
+	FloorMaterial: Enum.Material,
+	WallColor: Color3,
+	RecommendedSpeed: string, -- texto da placa
+	Rainbow: boolean?, -- chão com listras de arco-íris
+	TimedSpawn: boolean?, -- só nasce 1 ovo por vez, no timer (Celestial)
+}
 
 export type Egg = {
 	Id: string,
@@ -51,28 +54,47 @@ export type Egg = {
 	Rarity: string,
 	Color: Color3, -- cor do placeholder
 	SpotColor: Color3, -- cor das pintinhas do placeholder
-	Rainbow: boolean?, -- pintinhas coloridas
+	Rainbow: boolean?,
 	Model: string, -- nome do modelo em ReplicatedStorage.Assets.Eggs
-	SpawnWeight: number, -- peso, caso exista mais de um ovo da mesma raridade
-	Animals: { AnimalChance }, -- chances somam 100
 }
 
 export type Animal = {
 	Id: string,
 	Name: string,
 	Rarity: string,
-	Income: number, -- dinheiro por segundo
-	Color: Color3, -- cor do placeholder
-	Icon: string, -- emoji usado na interface (troque por imagem depois)
+	Income: number, -- dinheiro por segundo (nível 1, sem mutação)
+	Color: Color3,
+	Icon: string, -- emoji da interface
 	Model: string, -- nome do modelo em ReplicatedStorage.Assets.Animals
+}
+
+export type Mutation = {
+	Id: string,
+	Name: string,
+	Multiplier: number,
+	Chance: number, -- % de chance por ovo que nasce
+	Color: Color3,
+	Material: Enum.Material?,
 }
 
 export type WaveType = {
 	Id: string,
 	Name: string,
-	Speed: number, -- studs por segundo
-	Weight: number, -- chance relativa de sortear este tipo
-	Color: Color3, -- cor do aviso na tela
+	Emoji: string, -- aparece flutuando em cima da onda
+	Speed: number, -- studs por segundo (mesma escala da Velocidade do jogador)
+	Weight: number, -- chance relativa de sortear
+	Color: Color3, -- cor da água e do aviso
+	Height: number, -- altura da parede de água
+	Glow: boolean?,
+}
+
+export type GamePass = {
+	Key: string,
+	Id: number, -- coloque o ID do gamepass do seu jogo (0 = desativado)
+	Name: string,
+	Description: string,
+	Price: number, -- só para mostrar na loja (Robux)
+	Icon: string,
 }
 
 -- =====================================================================
@@ -81,411 +103,240 @@ export type WaveType = {
 
 GameConfig.Players = {
 	MaxPlayers = 8, -- também configure "Max Players" = 8 nas configurações do jogo
-	RespawnTime = 3, -- segundos até renascer no celeiro
+	RespawnTime = 3,
 }
 
 -- =====================================================================
--- RARIDADES + ZONAS DO CORREDOR (na ordem: perto da base -> fim do corredor)
--- Tempos de chocar: 1 min, 5 min, 15 min, 30 min, 1 h, 2h30, 6 h, 12 h
--- (Celestial e Divino usam 12 h também — mude se quiser)
+-- RARIDADES (cores do original) — tempos de chocar pedidos por você
 -- =====================================================================
 
 GameConfig.Rarities = {
-	{
-		Id = "Comum",
-		Name = "Comum",
-		Order = 1,
-		Color = Color3.fromRGB(215, 215, 215),
-		HatchTime = 60, -- 1 min
-		Zone = {
-			Biome = "Grama",
-			Length = 160,
-			HoleSpacing = 40,
-			MaxEggs = 8,
-			SpawnInterval = 4,
-			NestCount = 14,
-			FloorColor = Color3.fromRGB(106, 190, 72),
-			FloorMaterial = Enum.Material.Grass,
-			WallColor = Color3.fromRGB(150, 110, 70),
-			RecommendedSpeed = "0 - 10",
-		},
-	},
-	{
-		Id = "Incomum",
-		Name = "Incomum",
-		Order = 2,
-		Color = Color3.fromRGB(90, 225, 90),
-		HatchTime = 5 * 60, -- 5 min
-		Zone = {
-			Biome = "Grama escura",
-			Length = 200,
-			HoleSpacing = 50,
-			MaxEggs = 7,
-			SpawnInterval = 6,
-			NestCount = 14,
-			FloorColor = Color3.fromRGB(52, 120, 45),
-			FloorMaterial = Enum.Material.Grass,
-			WallColor = Color3.fromRGB(110, 80, 50),
-			RecommendedSpeed = "10 - 20",
-		},
-	},
-	{
-		Id = "Raro",
-		Name = "Raro",
-		Order = 3,
-		Color = Color3.fromRGB(70, 160, 255),
-		HatchTime = 15 * 60, -- 15 min
-		Zone = {
-			Biome = "Deserto",
-			Length = 240,
-			HoleSpacing = 60,
-			MaxEggs = 6,
-			SpawnInterval = 8,
-			NestCount = 12,
-			FloorColor = Color3.fromRGB(232, 205, 140),
-			FloorMaterial = Enum.Material.Sand,
-			WallColor = Color3.fromRGB(200, 160, 100),
-			RecommendedSpeed = "20 - 30",
-		},
-	},
-	{
-		Id = "Epico",
-		Name = "Épico",
-		Order = 4,
-		Color = Color3.fromRGB(185, 95, 255),
-		HatchTime = 30 * 60, -- 30 min
-		Zone = {
-			Biome = "Pedra",
-			Length = 280,
-			HoleSpacing = 75,
-			MaxEggs = 5,
-			SpawnInterval = 12,
-			NestCount = 12,
-			FloorColor = Color3.fromRGB(130, 130, 138),
-			FloorMaterial = Enum.Material.Slate,
-			WallColor = Color3.fromRGB(90, 90, 98),
-			RecommendedSpeed = "30 - 50",
-		},
-	},
-	{
-		Id = "Lendario",
-		Name = "Lendário",
-		Order = 5,
-		Color = Color3.fromRGB(255, 195, 35),
-		HatchTime = 60 * 60, -- 1 h
-		Zone = {
-			Biome = "Gelo e neve",
-			Length = 320,
-			HoleSpacing = 90,
-			MaxEggs = 4,
-			SpawnInterval = 16,
-			NestCount = 10,
-			FloorColor = Color3.fromRGB(230, 242, 255),
-			FloorMaterial = Enum.Material.Snow,
-			WallColor = Color3.fromRGB(160, 205, 235),
-			RecommendedSpeed = "50 - 80",
-		},
-	},
-	{
-		Id = "Mitico",
-		Name = "Mítico",
-		Order = 6,
-		Color = Color3.fromRGB(255, 75, 100),
-		HatchTime = 150 * 60, -- 2h30
-		Zone = {
-			Biome = "Oceano",
-			Length = 360,
-			HoleSpacing = 105,
-			MaxEggs = 4,
-			SpawnInterval = 20,
-			NestCount = 10,
-			FloorColor = Color3.fromRGB(70, 165, 215),
-			FloorMaterial = Enum.Material.SmoothPlastic,
-			WallColor = Color3.fromRGB(30, 95, 150),
-			RecommendedSpeed = "80 - 110",
-		},
-	},
-	{
-		Id = "Cosmico",
-		Name = "Cósmico",
-		Order = 7,
-		Color = Color3.fromRGB(255, 90, 230),
-		HatchTime = 6 * 3600, -- 6 h
-		Zone = {
-			Biome = "Espaço",
-			Length = 400,
-			HoleSpacing = 120,
-			MaxEggs = 3,
-			SpawnInterval = 25,
-			NestCount = 10,
-			FloorColor = Color3.fromRGB(60, 32, 110),
-			FloorMaterial = Enum.Material.Slate,
-			WallColor = Color3.fromRGB(30, 15, 60),
-			RecommendedSpeed = "110 - 140",
-		},
-	},
-	{
-		Id = "Secreto",
-		Name = "Secreto",
-		Order = 8,
-		Color = Color3.fromRGB(35, 35, 35),
-		HatchTime = 12 * 3600, -- 12 h
-		Zone = {
-			Biome = "Vulcão",
-			Length = 440,
-			HoleSpacing = 140,
-			MaxEggs = 3,
-			SpawnInterval = 30,
-			NestCount = 10,
-			FloorColor = Color3.fromRGB(200, 70, 30),
-			FloorMaterial = Enum.Material.CrackedLava,
-			WallColor = Color3.fromRGB(45, 30, 28),
-			RecommendedSpeed = "140 - 180",
-		},
-	},
-	{
-		Id = "Celestial",
-		Name = "Celestial",
-		Order = 9,
-		Color = Color3.fromRGB(255, 240, 140),
-		HatchTime = 12 * 3600, -- 12 h
-		Zone = {
-			Biome = "Nuvens douradas",
-			Length = 480,
-			HoleSpacing = 160,
-			MaxEggs = 2,
-			SpawnInterval = 40,
-			NestCount = 8,
-			FloorColor = Color3.fromRGB(255, 236, 175),
-			FloorMaterial = Enum.Material.SmoothPlastic,
-			WallColor = Color3.fromRGB(245, 245, 255),
-			RecommendedSpeed = "180 - 200",
-		},
-	},
-	{
-		Id = "Divino",
-		Name = "Divino",
-		Order = 10,
-		Color = Color3.fromRGB(120, 255, 240),
-		HatchTime = 12 * 3600, -- 12 h
-		Zone = {
-			Biome = "Arco-íris",
-			Length = 520,
-			HoleSpacing = 180,
-			MaxEggs = 2,
-			SpawnInterval = 50,
-			NestCount = 8,
-			FloorColor = Color3.fromRGB(255, 255, 255),
-			FloorMaterial = Enum.Material.SmoothPlastic,
-			WallColor = Color3.fromRGB(255, 220, 250),
-			RecommendedSpeed = "200+",
-			Rainbow = true,
-		},
-	},
+	{ Id = "Comum", Name = "Comum", Order = 1, Color = Color3.fromRGB(205, 205, 205), HatchTime = 60 },
+	{ Id = "Incomum", Name = "Incomum", Order = 2, Color = Color3.fromRGB(120, 235, 100), HatchTime = 5 * 60 },
+	{ Id = "Raro", Name = "Raro", Order = 3, Color = Color3.fromRGB(60, 145, 255), HatchTime = 15 * 60 },
+	{ Id = "Epico", Name = "Épico", Order = 4, Color = Color3.fromRGB(175, 85, 255), HatchTime = 30 * 60 },
+	{ Id = "Lendario", Name = "Lendário", Order = 5, Color = Color3.fromRGB(255, 215, 40), HatchTime = 3600 },
+	{ Id = "Mitico", Name = "Mítico", Order = 6, Color = Color3.fromRGB(255, 60, 60), HatchTime = 150 * 60 },
+	{ Id = "Cosmico", Name = "Cósmico", Order = 7, Color = Color3.fromRGB(255, 70, 225), HatchTime = 6 * 3600 },
+	{ Id = "Secreto", Name = "Secreto", Order = 8, Color = Color3.fromRGB(25, 25, 25), HatchTime = 12 * 3600 },
+	{ Id = "Celestial", Name = "Celestial", Order = 9, Color = Color3.fromRGB(255, 140, 205), HatchTime = 12 * 3600 },
+	{ Id = "Divino", Name = "Divino", Order = 10, Color = Color3.fromRGB(255, 245, 150), HatchTime = 12 * 3600 },
 } :: { Rarity }
 
 -- =====================================================================
--- OVOS (um por raridade; dá para adicionar mais com o mesmo Rarity)
+-- ÁREAS DO CORREDOR (da base para o fim). Trincheiras ficam ENTRE as áreas.
+-- Como no original: Início (sem ovos), Comum ... Cósmico (2), Secreto (3),
+-- Celestial (1 ovo por vez a cada 15 min). No fim: a Torre do Tsunami.
+-- =====================================================================
+
+local function area(
+	id: string,
+	name: string,
+	rarity: string?,
+	length: number,
+	maxEggs: number,
+	interval: number,
+	nests: number,
+	floor: Color3,
+	material: Enum.Material,
+	wall: Color3,
+	speed: string
+): Area
+	return {
+		Id = id,
+		Name = name,
+		Rarity = rarity,
+		Length = length,
+		MaxEggs = maxEggs,
+		SpawnInterval = interval,
+		NestCount = nests,
+		FloorColor = floor,
+		FloorMaterial = material,
+		WallColor = wall,
+		RecommendedSpeed = speed,
+	}
+end
+
+local rgb = Color3.fromRGB
+local M = Enum.Material
+
+GameConfig.Areas = {
+	area("Inicio", "Início", nil, 60, 0, 0, 0, rgb(120, 200, 90), M.Grass, rgb(150, 110, 70), ""),
+	area("Comum", "Comum", "Comum", 150, 8, 4, 12, rgb(106, 190, 72), M.Grass, rgb(150, 110, 70), "0 - 20"),
+	area("Incomum", "Incomum", "Incomum", 180, 7, 5, 12, rgb(70, 150, 55), M.Grass, rgb(110, 80, 50), "20 - 40"),
+	area("Raro", "Raro", "Raro", 220, 6, 7, 12, rgb(232, 205, 140), M.Sand, rgb(200, 160, 100), "40 - 65"),
+	area("Epico", "Épico", "Epico", 260, 5, 9, 10, rgb(130, 130, 138), M.Slate, rgb(90, 90, 98), "65 - 85"),
+	area("Lendario", "Lendário", "Lendario", 300, 5, 12, 10, rgb(230, 242, 255), M.Snow, rgb(160, 205, 235), "85 - 110"),
+	area("Mitico", "Mítico", "Mitico", 320, 4, 15, 10, rgb(70, 165, 215), M.SmoothPlastic, rgb(30, 95, 150), "110 - 130"),
+	area("Cosmico1", "Cósmico I", "Cosmico", 280, 3, 18, 8, rgb(60, 32, 110), M.Slate, rgb(30, 15, 60), "130 - 150"),
+	area("Cosmico2", "Cósmico II", "Cosmico", 280, 3, 18, 8, rgb(80, 40, 140), M.Slate, rgb(40, 20, 80), "130 - 150"),
+	area("Secreto1", "Secreto I", "Secreto", 300, 2, 25, 8, rgb(200, 70, 30), M.CrackedLava, rgb(45, 30, 28), "150+"),
+	area("Secreto2", "Secreto II", "Secreto", 300, 2, 25, 8, rgb(180, 50, 25), M.CrackedLava, rgb(40, 25, 22), "150+"),
+	area("Secreto3", "Secreto III", "Secreto", 300, 2, 25, 8, rgb(160, 35, 20), M.CrackedLava, rgb(35, 20, 18), "160+"),
+	area("Celestial", "Celestial", "Celestial", 360, 0, 0, 0, rgb(255, 236, 200), M.SmoothPlastic, rgb(255, 220, 245), "180+"),
+} :: { Area }
+GameConfig.Areas[#GameConfig.Areas].Rainbow = true
+GameConfig.Areas[#GameConfig.Areas].TimedSpawn = true
+
+-- =====================================================================
+-- OVOS (um por raridade)
 -- =====================================================================
 
 GameConfig.Eggs = {
-	{
-		Id = "OvoCaipira",
-		Name = "Ovo Caipira",
-		Rarity = "Comum",
-		Color = Color3.fromRGB(250, 238, 215),
-		SpotColor = Color3.fromRGB(205, 170, 120),
-		Model = "OvoCaipira",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Pintinho", Chance = 60 },
-			{ Animal = "Galinha", Chance = 30 },
-			{ Animal = "Pato", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoFazenda",
-		Name = "Ovo da Fazenda",
-		Rarity = "Incomum",
-		Color = Color3.fromRGB(150, 215, 120),
-		SpotColor = Color3.fromRGB(80, 150, 60),
-		Model = "OvoFazenda",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Coelho", Chance = 60 },
-			{ Animal = "Porco", Chance = 30 },
-			{ Animal = "Ovelha", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoDeserto",
-		Name = "Ovo do Deserto",
-		Rarity = "Raro",
-		Color = Color3.fromRGB(235, 185, 95),
-		SpotColor = Color3.fromRGB(160, 100, 40),
-		Model = "OvoDeserto",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Suricato", Chance = 60 },
-			{ Animal = "Escorpiao", Chance = 30 },
-			{ Animal = "Camelo", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoPedra",
-		Name = "Ovo de Pedra",
-		Rarity = "Epico",
-		Color = Color3.fromRGB(150, 150, 165),
-		SpotColor = Color3.fromRGB(185, 95, 255),
-		Model = "OvoPedra",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Cabra", Chance = 60 },
-			{ Animal = "Aguia", Chance = 30 },
-			{ Animal = "Lobo", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoGelo",
-		Name = "Ovo de Gelo",
-		Rarity = "Lendario",
-		Color = Color3.fromRGB(175, 230, 255),
-		SpotColor = Color3.fromRGB(255, 255, 255),
-		Model = "OvoGelo",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Pinguim", Chance = 60 },
-			{ Animal = "RaposaArtica", Chance = 30 },
-			{ Animal = "UrsoPolar", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoOceano",
-		Name = "Ovo do Oceano",
-		Rarity = "Mitico",
-		Color = Color3.fromRGB(40, 140, 220),
-		SpotColor = Color3.fromRGB(120, 230, 255),
-		Model = "OvoOceano",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Peixe", Chance = 60 },
-			{ Animal = "Golfinho", Chance = 30 },
-			{ Animal = "Orca", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoCosmico",
-		Name = "Ovo Cósmico",
-		Rarity = "Cosmico",
-		Color = Color3.fromRGB(110, 55, 210),
-		SpotColor = Color3.fromRGB(255, 240, 120),
-		Model = "OvoCosmico",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "PolvoGalactico", Chance = 60 },
-			{ Animal = "GatoAstronauta", Chance = 30 },
-			{ Animal = "BaleiaEstelar", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoLava",
-		Name = "Ovo de Lava",
-		Rarity = "Secreto",
-		Color = Color3.fromRGB(40, 30, 30),
-		SpotColor = Color3.fromRGB(255, 110, 20),
-		Model = "OvoLava",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "SalamandraLava", Chance = 60 },
-			{ Animal = "DragaoLava", Chance = 30 },
-			{ Animal = "Fenix", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoNuvens",
-		Name = "Ovo das Nuvens",
-		Rarity = "Celestial",
-		Color = Color3.fromRGB(255, 225, 120),
-		SpotColor = Color3.fromRGB(255, 255, 255),
-		Model = "OvoNuvens",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Pegaso", Chance = 60 },
-			{ Animal = "CisneDourado", Chance = 30 },
-			{ Animal = "LeaoAlado", Chance = 10 },
-		},
-	},
-	{
-		Id = "OvoDivino",
-		Name = "Ovo Divino",
-		Rarity = "Divino",
-		Color = Color3.fromRGB(255, 255, 255),
-		SpotColor = Color3.fromRGB(255, 120, 200),
-		Rainbow = true,
-		Model = "OvoDivino",
-		SpawnWeight = 1,
-		Animals = {
-			{ Animal = "Unicornio", Chance = 60 },
-			{ Animal = "DragaoDivino", Chance = 30 },
-			{ Animal = "PavaoDivino", Chance = 10 },
-		},
-	},
+	{ Id = "OvoCaipira", Name = "Ovo Caipira", Rarity = "Comum", Color = rgb(250, 238, 215), SpotColor = rgb(205, 170, 120), Model = "OvoCaipira" },
+	{ Id = "OvoFazenda", Name = "Ovo da Fazenda", Rarity = "Incomum", Color = rgb(150, 215, 120), SpotColor = rgb(80, 150, 60), Model = "OvoFazenda" },
+	{ Id = "OvoDeserto", Name = "Ovo do Deserto", Rarity = "Raro", Color = rgb(235, 185, 95), SpotColor = rgb(60, 120, 230), Model = "OvoDeserto" },
+	{ Id = "OvoPedra", Name = "Ovo de Pedra", Rarity = "Epico", Color = rgb(150, 150, 165), SpotColor = rgb(185, 95, 255), Model = "OvoPedra" },
+	{ Id = "OvoGelo", Name = "Ovo de Gelo", Rarity = "Lendario", Color = rgb(175, 230, 255), SpotColor = rgb(255, 220, 60), Model = "OvoGelo" },
+	{ Id = "OvoOceano", Name = "Ovo do Oceano", Rarity = "Mitico", Color = rgb(40, 140, 220), SpotColor = rgb(255, 80, 80), Model = "OvoOceano" },
+	{ Id = "OvoCosmico", Name = "Ovo Cósmico", Rarity = "Cosmico", Color = rgb(110, 55, 210), SpotColor = rgb(255, 120, 230), Model = "OvoCosmico" },
+	{ Id = "OvoLava", Name = "Ovo de Lava", Rarity = "Secreto", Color = rgb(40, 30, 30), SpotColor = rgb(255, 110, 20), Model = "OvoLava" },
+	{ Id = "OvoNuvens", Name = "Ovo das Nuvens", Rarity = "Celestial", Color = rgb(255, 225, 240), SpotColor = rgb(255, 140, 205), Model = "OvoNuvens" },
+	{ Id = "OvoDivino", Name = "Ovo Divino", Rarity = "Divino", Color = rgb(255, 250, 200), SpotColor = rgb(255, 120, 200), Rainbow = true, Model = "OvoDivino" },
 } :: { Egg }
 
 -- =====================================================================
--- ANIMAIS (Income = dinheiro por segundo)
+-- ANIMAIS — escadas de renda iguais às do original (mais fraco -> mais forte)
+-- A chance de cada animal dentro do ovo vem de AnimalWeights (o 1º é o mais comum).
 -- =====================================================================
 
+local function animal(id: string, name: string, rarity: string, income: number, icon: string, color: Color3): Animal
+	return { Id = id, Name = name, Rarity = rarity, Income = income, Icon = icon, Color = color, Model = id }
+end
+
 GameConfig.Animals = {
-	-- Comum
-	{ Id = "Pintinho", Name = "Pintinho", Rarity = "Comum", Income = 1, Color = Color3.fromRGB(255, 225, 70), Icon = "🐥", Model = "Pintinho" },
-	{ Id = "Galinha", Name = "Galinha", Rarity = "Comum", Income = 2, Color = Color3.fromRGB(250, 250, 245), Icon = "🐔", Model = "Galinha" },
-	{ Id = "Pato", Name = "Pato", Rarity = "Comum", Income = 4, Color = Color3.fromRGB(255, 240, 160), Icon = "🦆", Model = "Pato" },
-	-- Incomum
-	{ Id = "Coelho", Name = "Coelho", Rarity = "Incomum", Income = 6, Color = Color3.fromRGB(235, 225, 215), Icon = "🐰", Model = "Coelho" },
-	{ Id = "Porco", Name = "Porco", Rarity = "Incomum", Income = 9, Color = Color3.fromRGB(255, 170, 185), Icon = "🐷", Model = "Porco" },
-	{ Id = "Ovelha", Name = "Ovelha", Rarity = "Incomum", Income = 14, Color = Color3.fromRGB(245, 245, 245), Icon = "🐑", Model = "Ovelha" },
-	-- Raro
-	{ Id = "Suricato", Name = "Suricato", Rarity = "Raro", Income = 22, Color = Color3.fromRGB(205, 160, 105), Icon = "🦦", Model = "Suricato" },
-	{ Id = "Escorpiao", Name = "Escorpião", Rarity = "Raro", Income = 30, Color = Color3.fromRGB(150, 70, 40), Icon = "🦂", Model = "Escorpiao" },
-	{ Id = "Camelo", Name = "Camelo", Rarity = "Raro", Income = 45, Color = Color3.fromRGB(215, 170, 100), Icon = "🐫", Model = "Camelo" },
-	-- Épico
-	{ Id = "Cabra", Name = "Cabra-Montesa", Rarity = "Epico", Income = 90, Color = Color3.fromRGB(200, 195, 185), Icon = "🐐", Model = "Cabra" },
-	{ Id = "Aguia", Name = "Águia", Rarity = "Epico", Income = 130, Color = Color3.fromRGB(110, 75, 45), Icon = "🦅", Model = "Aguia" },
-	{ Id = "Lobo", Name = "Lobo", Rarity = "Epico", Income = 200, Color = Color3.fromRGB(120, 125, 140), Icon = "🐺", Model = "Lobo" },
-	-- Lendário
-	{ Id = "Pinguim", Name = "Pinguim", Rarity = "Lendario", Income = 450, Color = Color3.fromRGB(40, 45, 60), Icon = "🐧", Model = "Pinguim" },
-	{ Id = "RaposaArtica", Name = "Raposa-do-Ártico", Rarity = "Lendario", Income = 650, Color = Color3.fromRGB(240, 248, 255), Icon = "🦊", Model = "RaposaArtica" },
-	{ Id = "UrsoPolar", Name = "Urso-Polar", Rarity = "Lendario", Income = 1000, Color = Color3.fromRGB(250, 250, 250), Icon = "🐻", Model = "UrsoPolar" },
-	-- Mítico
-	{ Id = "Peixe", Name = "Peixe", Rarity = "Mitico", Income = 2200, Color = Color3.fromRGB(255, 150, 40), Icon = "🐟", Model = "Peixe" },
-	{ Id = "Golfinho", Name = "Golfinho", Rarity = "Mitico", Income = 3200, Color = Color3.fromRGB(110, 170, 220), Icon = "🐬", Model = "Golfinho" },
-	{ Id = "Orca", Name = "Orca", Rarity = "Mitico", Income = 5000, Color = Color3.fromRGB(25, 25, 35), Icon = "🐋", Model = "Orca" },
-	-- Cósmico
-	{ Id = "PolvoGalactico", Name = "Polvo Galáctico", Rarity = "Cosmico", Income = 11000, Color = Color3.fromRGB(160, 70, 255), Icon = "🐙", Model = "PolvoGalactico" },
-	{ Id = "GatoAstronauta", Name = "Gato Astronauta", Rarity = "Cosmico", Income = 16000, Color = Color3.fromRGB(230, 230, 240), Icon = "🐱", Model = "GatoAstronauta" },
-	{ Id = "BaleiaEstelar", Name = "Baleia Estelar", Rarity = "Cosmico", Income = 25000, Color = Color3.fromRGB(40, 60, 160), Icon = "🐳", Model = "BaleiaEstelar" },
-	-- Secreto
-	{ Id = "SalamandraLava", Name = "Salamandra de Lava", Rarity = "Secreto", Income = 60000, Color = Color3.fromRGB(255, 90, 20), Icon = "🦎", Model = "SalamandraLava" },
-	{ Id = "DragaoLava", Name = "Dragão de Lava", Rarity = "Secreto", Income = 90000, Color = Color3.fromRGB(150, 25, 15), Icon = "🐉", Model = "DragaoLava" },
-	{ Id = "Fenix", Name = "Fênix", Rarity = "Secreto", Income = 140000, Color = Color3.fromRGB(255, 60, 20), Icon = "🐦", Model = "Fenix" },
-	-- Celestial
-	{ Id = "Pegaso", Name = "Pégaso", Rarity = "Celestial", Income = 300000, Color = Color3.fromRGB(255, 255, 255), Icon = "🐴", Model = "Pegaso" },
-	{ Id = "CisneDourado", Name = "Cisne Dourado", Rarity = "Celestial", Income = 450000, Color = Color3.fromRGB(255, 210, 80), Icon = "🦢", Model = "CisneDourado" },
-	{ Id = "LeaoAlado", Name = "Leão Alado", Rarity = "Celestial", Income = 700000, Color = Color3.fromRGB(240, 180, 60), Icon = "🦁", Model = "LeaoAlado" },
-	-- Divino
-	{ Id = "Unicornio", Name = "Unicórnio Arco-íris", Rarity = "Divino", Income = 1500000, Color = Color3.fromRGB(255, 200, 245), Icon = "🦄", Model = "Unicornio" },
-	{ Id = "DragaoDivino", Name = "Dragão Divino", Rarity = "Divino", Income = 2300000, Color = Color3.fromRGB(120, 255, 220), Icon = "🐲", Model = "DragaoDivino" },
-	{ Id = "PavaoDivino", Name = "Pavão Divino", Rarity = "Divino", Income = 3500000, Color = Color3.fromRGB(60, 200, 255), Icon = "🦚", Model = "PavaoDivino" },
+	-- Comum: 2, 4, 6, 7, 9, 11, 13, 15
+	animal("Pintinho", "Pintinho", "Comum", 2, "🐥", rgb(255, 225, 70)),
+	animal("Galinha", "Galinha", "Comum", 4, "🐔", rgb(250, 250, 245)),
+	animal("Pato", "Pato", "Comum", 6, "🦆", rgb(255, 240, 160)),
+	animal("Peru", "Peru", "Comum", 7, "🦃", rgb(150, 90, 60)),
+	animal("Codorna", "Codorna", "Comum", 9, "🐦", rgb(170, 130, 90)),
+	animal("Galo", "Galo", "Comum", 11, "🐓", rgb(230, 70, 40)),
+	animal("Hamster", "Hamster", "Comum", 13, "🐹", rgb(240, 190, 130)),
+	animal("Ratinho", "Ratinho", "Comum", 15, "🐭", rgb(200, 200, 210)),
+	-- Incomum: 20, 30, 35, 40, 50, 60, 70, 90, 120
+	animal("Coelho", "Coelho", "Incomum", 20, "🐰", rgb(235, 225, 215)),
+	animal("Porco", "Porco", "Incomum", 30, "🐷", rgb(255, 170, 185)),
+	animal("Ovelha", "Ovelha", "Incomum", 35, "🐑", rgb(245, 245, 245)),
+	animal("Cachorro", "Cachorro", "Incomum", 40, "🐶", rgb(200, 150, 90)),
+	animal("Gato", "Gato", "Incomum", 50, "🐱", rgb(255, 180, 90)),
+	animal("Vaca", "Vaca", "Incomum", 60, "🐮", rgb(250, 250, 250)),
+	animal("Cavalo", "Cavalo", "Incomum", 70, "🐴", rgb(140, 90, 55)),
+	animal("Lhama", "Lhama", "Incomum", 90, "🦙", rgb(240, 225, 200)),
+	animal("Touro", "Touro", "Incomum", 120, "🐂", rgb(110, 70, 45)),
+	-- Raro: 100 ... 275
+	animal("Formiga", "Formiga Gigante", "Raro", 100, "🐜", rgb(120, 40, 30)),
+	animal("Suricato", "Suricato", "Raro", 120, "🦦", rgb(205, 160, 105)),
+	animal("Escorpiao", "Escorpião", "Raro", 135, "🦂", rgb(150, 70, 40)),
+	animal("Lagartixa", "Lagartixa", "Raro", 150, "🦎", rgb(120, 200, 80)),
+	animal("Cobra", "Cobra", "Raro", 175, "🐍", rgb(80, 160, 60)),
+	animal("Camelo", "Camelo", "Raro", 200, "🐫", rgb(215, 170, 100)),
+	animal("Dromedario", "Dromedário", "Raro", 240, "🐪", rgb(200, 150, 90)),
+	animal("Leao", "Leão", "Raro", 275, "🦁", rgb(230, 170, 60)),
+	-- Épico: 290 ... 1.400
+	animal("Cabra", "Cabra-Montesa", "Epico", 290, "🐐", rgb(200, 195, 185)),
+	animal("Coruja", "Coruja", "Epico", 475, "🦉", rgb(150, 110, 70)),
+	animal("Aguia", "Águia", "Epico", 625, "🦅", rgb(110, 75, 45)),
+	animal("Lobo", "Lobo", "Epico", 775, "🐺", rgb(120, 125, 140)),
+	animal("Urso", "Urso", "Epico", 925, "🐻", rgb(120, 80, 50)),
+	animal("Gorila", "Gorila", "Epico", 1100, "🦍", rgb(60, 60, 65)),
+	animal("Rinoceronte", "Rinoceronte", "Epico", 1270, "🦏", rgb(150, 150, 155)),
+	animal("Elefante", "Elefante", "Epico", 1400, "🐘", rgb(160, 160, 175)),
+	-- Lendário: 1.500 ... 5.000
+	animal("Pinguim", "Pinguim", "Lendario", 1500, "🐧", rgb(40, 45, 60)),
+	animal("RaposaArtica", "Raposa-do-Ártico", "Lendario", 1900, "🦊", rgb(240, 248, 255)),
+	animal("CorujaNeves", "Coruja-das-Neves", "Lendario", 2290, "🦉", rgb(250, 250, 255)),
+	animal("LebreArtica", "Lebre-Ártica", "Lendario", 2600, "🐇", rgb(235, 240, 250)),
+	animal("LoboArtico", "Lobo-Ártico", "Lendario", 3200, "🐺", rgb(220, 230, 240)),
+	animal("Rena", "Rena", "Lendario", 3500, "🦌", rgb(150, 100, 60)),
+	animal("UrsoPolar", "Urso-Polar", "Lendario", 4000, "🐻", rgb(250, 250, 250)),
+	animal("Yeti", "Yeti", "Lendario", 5000, "⛄", rgb(200, 230, 255)),
+	-- Mítico: 6.000 ... 25.500
+	animal("Peixe", "Peixe", "Mitico", 6000, "🐟", rgb(255, 150, 40)),
+	animal("PeixePalhaco", "Peixe-Palhaço", "Mitico", 8000, "🐠", rgb(255, 120, 30)),
+	animal("Baiacu", "Baiacu", "Mitico", 10000, "🐡", rgb(230, 200, 120)),
+	animal("Caranguejo", "Caranguejo", "Mitico", 11000, "🦀", rgb(230, 60, 40)),
+	animal("Lula", "Lula", "Mitico", 13000, "🦑", rgb(255, 130, 150)),
+	animal("Tubarao", "Tubarão", "Mitico", 15000, "🦈", rgb(110, 130, 160)),
+	animal("Golfinho", "Golfinho", "Mitico", 19000, "🐬", rgb(110, 170, 220)),
+	animal("Orca", "Orca", "Mitico", 25500, "🐋", rgb(25, 25, 35)),
+	-- Cósmico: 22.000 ... 240.000
+	animal("Alien", "Alien Verde", "Cosmico", 22000, "👽", rgb(120, 230, 120)),
+	animal("Robo", "Robô Espacial", "Cosmico", 48000, "🤖", rgb(180, 190, 210)),
+	animal("PolvoGalactico", "Polvo Galáctico", "Cosmico", 60000, "🐙", rgb(160, 70, 255)),
+	animal("GatoAstronauta", "Gato Astronauta", "Cosmico", 90000, "🚀", rgb(230, 230, 240)),
+	animal("CoelhoLunar", "Coelho Lunar", "Cosmico", 110000, "🌙", rgb(255, 245, 190)),
+	animal("EstrelaViva", "Estrela Viva", "Cosmico", 130000, "⭐", rgb(255, 220, 60)),
+	animal("BaleiaEstelar", "Baleia Estelar", "Cosmico", 170000, "🐳", rgb(40, 60, 160)),
+	animal("Cometa", "Cometa", "Cosmico", 240000, "🌠", rgb(120, 200, 255)),
+	-- Secreto: 200.000 ... 7,5M
+	animal("MorcegoVulcanico", "Morcego Vulcânico", "Secreto", 200000, "🦇", rgb(60, 30, 30)),
+	animal("SalamandraLava", "Salamandra de Lava", "Secreto", 350000, "🦎", rgb(255, 90, 20)),
+	animal("EscorpiaoFogo", "Escorpião de Fogo", "Secreto", 500000, "🦂", rgb(255, 60, 20)),
+	animal("CobraMagma", "Cobra de Magma", "Secreto", 700000, "🐍", rgb(200, 40, 10)),
+	animal("GolemLava", "Golem de Lava", "Secreto", 1000000, "🗿", rgb(90, 50, 40)),
+	animal("Fenix", "Fênix", "Secreto", 2500000, "🔥", rgb(255, 120, 20)),
+	animal("DragaoLava", "Dragão de Lava", "Secreto", 6000000, "🐉", rgb(150, 25, 15)),
+	animal("ReiVulcao", "Rei do Vulcão", "Secreto", 7500000, "👑", rgb(255, 200, 40)),
+	-- Celestial: 7,5M ... 18M
+	animal("Pegaso", "Pégaso", "Celestial", 7500000, "🐴", rgb(255, 255, 255)),
+	animal("CisneDourado", "Cisne Dourado", "Celestial", 8500000, "🦢", rgb(255, 210, 80)),
+	animal("LeaoAlado", "Leão Alado", "Celestial", 9500000, "🦁", rgb(240, 180, 60)),
+	animal("Grifo", "Grifo", "Celestial", 12250000, "🦅", rgb(230, 200, 140)),
+	animal("PavaoDourado", "Pavão Dourado", "Celestial", 14000000, "🦚", rgb(255, 200, 60)),
+	animal("DragaoCelestial", "Dragão Celestial", "Celestial", 18000000, "🐲", rgb(255, 180, 230)),
+	-- Divino: 30M ... 330M
+	animal("Unicornio", "Unicórnio Arco-íris", "Divino", 30000000, "🦄", rgb(255, 200, 245)),
+	animal("FenixArcoIris", "Fênix Arco-íris", "Divino", 45000000, "🌈", rgb(255, 120, 200)),
+	animal("BaleiaArcoIris", "Baleia Arco-íris", "Divino", 88800000, "🐳", rgb(120, 220, 255)),
+	animal("DragaoDivino", "Dragão Divino", "Divino", 115000000, "🐉", rgb(120, 255, 220)),
+	animal("PavaoDivino", "Pavão Divino", "Divino", 140000000, "🦚", rgb(60, 200, 255)),
+	animal("GalinhaOvosOuro", "Galinha dos Ovos de Ouro", "Divino", 330000000, "🐔", rgb(255, 215, 0)),
 } :: { Animal }
+
+-- Peso de cada animal dentro do ovo, do mais fraco para o mais forte
+GameConfig.AnimalWeights = { 30, 22, 16, 12, 8, 6, 3, 2, 1 }
+
+-- =====================================================================
+-- MUTAÇÕES (sorteadas quando o ovo nasce; o animal herda)
+-- =====================================================================
+
+GameConfig.Mutations = {
+	{ Id = "Esmeralda", Name = "Esmeralda", Multiplier = 1.5, Chance = 4, Color = rgb(40, 220, 110), Material = M.Glass },
+	{ Id = "Dourado", Name = "Dourado", Multiplier = 1.5, Chance = 4, Color = rgb(255, 200, 40), Material = M.Foil },
+	{ Id = "Rubi", Name = "Rubi", Multiplier = 2, Chance = 2.5, Color = rgb(220, 30, 50), Material = M.Glass },
+	{ Id = "Eletrico", Name = "Elétrico", Multiplier = 3, Chance = 1.2, Color = rgb(90, 200, 255), Material = M.Neon },
+	{ Id = "Diamante", Name = "Diamante", Multiplier = 4.25, Chance = 0.5, Color = rgb(150, 230, 255), Material = M.Glass },
+} :: { Mutation }
+
+-- =====================================================================
+-- NINHO SURPRESA (o "Lucky Block" da versão com ovos)
+-- =====================================================================
+
+GameConfig.LuckyNest = {
+	Chance = 4, -- % de um ovo que nasce virar Ninho Surpresa
+	MutationLuck = 3, -- multiplica as chances de mutação
+	UpgradeChance = 10, -- % de vir um ovo da raridade seguinte
+	Color = rgb(255, 205, 60),
+}
+
+-- =====================================================================
+-- OVO CELESTIAL (1 por vez, no fim do corredor)
+-- =====================================================================
+
+GameConfig.Celestial = {
+	Interval = 15 * 60, -- de quanto em quanto tempo aparece
+	FirstDelay = 5 * 60, -- primeiro depois que o servidor abre
+	DivineChance = 5, -- % de vir um Ovo Divino no lugar
+}
 
 -- =====================================================================
 -- MAPA
 -- =====================================================================
 
 GameConfig.Map = {
-	Seed = 2024, -- muda a posição dos ninhos
-	FloorY = 0, -- altura do chão
+	Seed = 2024,
+	FloorY = 0,
 	FloorThickness = 14, -- precisa ser maior que HoleDepth
 	CorridorWidth = 64,
 	WallHeight = 60,
@@ -493,48 +344,55 @@ GameConfig.Map = {
 	SafeZoneStartZ = 0, -- onde começa a ZONA SEGURA (o corredor vai para +Z)
 	SafeZoneLength = 30,
 
-	-- Buracos (fossos para se esconder)
-	HoleLength = 24, -- tamanho do buraco no sentido do corredor
+	-- Trincheiras (entre as áreas; áreas longas ganham mais uma no meio)
+	HoleLength = 24,
 	HoleDepth = 10,
-	HoleRampLength = 13, -- rampa para sair (fica no lado da base)
-	FirstHoleOffset = 20, -- distância do 1º buraco depois da zona segura
+	HoleRampLength = 13,
+	MidTrenchMinLength = 280,
 
-	-- Área inicial com os celeiros (em meio-círculo, de frente para o corredor)
+	-- Nichos VIP de vidro nas paredes (um de cada lado por área)
+	VipAlcoveWidth = 12,
+	VipAlcoveDepth = 9,
+	VipAlcoveHeight = 12,
+
+	-- Área inicial com os celeiros (meio-círculo virado para o corredor)
 	BaseAreaHalfWidth = 215,
 	BaseAreaDepth = 205,
 	BarnArcRadius = 143,
-	BarnArcAngle = 160, -- graus
-	BarnSize = Vector3.new(40, 14, 52),
+	BarnArcAngle = 160,
+	BarnSize = Vector3.new(40, 13, 52),
+	FloorHeight = 14, -- altura de cada andar do celeiro
+	UpgradeRingPosition = Vector3.new(0, 0, -55), -- anel ciano da loja de upgrades
+	UpgradeRingRadius = 8,
 
-	-- Slots dentro do celeiro (2 colunas)
-	SlotColumnX = 13, -- distância do centro do celeiro até a coluna de ninhos
-	PadColumnX = 6, -- distância do centro até a coluna de coletores
-	FirstRowZ = -17, -- fileira mais perto da porta
+	-- Slots dentro do celeiro (2 colunas x 5 fileiras por andar)
+	SlotColumnX = 13,
+	PadColumnX = 6,
+	FirstRowZ = -17,
 	RowSpacing = 7.5,
 	PenSize = Vector3.new(9, 0.4, 6.5),
 	PadSize = Vector3.new(3.5, 0.4, 3.5),
 
-	ClearTerrain = true, -- apaga o Terrain ao iniciar (ele taparia os buracos)
+	ClearTerrain = true,
 }
 
 -- =====================================================================
--- TSUNAMI
+-- TSUNAMI (velocidades e cores do original)
 -- =====================================================================
 
 GameConfig.Waves = {
-	FirstWaveDelay = 30, -- segundos até a 1ª onda depois que o servidor abre
-	MinInterval = 45, -- intervalo aleatório entre ondas (início a início)
-	MaxInterval = 90,
-	WarningTime = 10, -- "TSUNAMI EM 10s!"
-	Height = 45,
-	Thickness = 40, -- espessura da parede de água
+	FirstWaveDelay = 20,
+	MinInterval = 30, -- intervalo aleatório entre ondas (elas podem se sobrepor)
+	MaxInterval = 60,
+	WarningTime = 5, -- últimos segundos com aviso grande + bipes
+	Thickness = 30,
 	HideDepth = 3, -- o jogador precisa estar pelo menos isso abaixo do chão
 	Types = {
-		{ Id = "SuperLenta", Name = "Super Lenta", Speed = 30, Weight = 15, Color = Color3.fromRGB(90, 200, 255) },
-		{ Id = "Lenta", Name = "Lenta", Speed = 45, Weight = 30, Color = Color3.fromRGB(50, 130, 255) },
-		{ Id = "Media", Name = "Média", Speed = 65, Weight = 30, Color = Color3.fromRGB(255, 200, 40) },
-		{ Id = "Rapida", Name = "Rápida", Speed = 90, Weight = 18, Color = Color3.fromRGB(255, 120, 30) },
-		{ Id = "Relampago", Name = "Relâmpago", Speed = 130, Weight = 7, Color = Color3.fromRGB(255, 40, 40) },
+		{ Id = "SuperLenta", Name = "Super Lenta", Emoji = "😁", Speed = 85, Weight = 30, Color = rgb(140, 215, 255), Height = 30 },
+		{ Id = "Lenta", Name = "Lenta", Emoji = "🙂", Speed = 120, Weight = 25, Color = rgb(45, 115, 255), Height = 36 },
+		{ Id = "Media", Name = "Média", Emoji = "😐", Speed = 140, Weight = 20, Color = rgb(110, 230, 110), Height = 42 },
+		{ Id = "Rapida", Name = "Rápida", Emoji = "😠", Speed = 180, Weight = 15, Color = rgb(255, 55, 55), Height = 50 },
+		{ Id = "Relampago", Name = "Relâmpago", Emoji = "😈", Speed = 220, Weight = 10, Color = rgb(165, 60, 255), Height = 58, Glow = true },
 	} :: { WaveType },
 }
 
@@ -543,62 +401,102 @@ GameConfig.Waves = {
 -- =====================================================================
 
 GameConfig.Speed = {
-	BaseWalkSpeed = 16, -- velocidade no nível 0
-	WalkSpeedPerLevel = 1, -- +WalkSpeed por nível comprado
-	MaxLevel = 300,
-	BasePrice = 15, -- preço do 1º nível
-	PriceGrowth = 1.1, -- preço = BasePrice * PriceGrowth ^ nível
+	BaseWalkSpeed = 16, -- Velocidade inicial (mostrada no HUD)
+	WalkSpeedPerLevel = 1,
+	MaxLevel = 1000,
+	BasePrice = 590, -- preço do 1º +1 (chegar a 50 custa ~ $722K, como no original)
+	PriceGrowth = 1.17, -- cada nível custa 17% a mais
+	Packs = { -- desconto dos pacotes (o +10 sai pela metade, como no original)
+		{ Amount = 1, Discount = 1 },
+		{ Amount = 5, Discount = 0.74 },
+		{ Amount = 10, Discount = 0.49 },
+	},
 }
 
 GameConfig.Carry = {
-	Start = 1, -- ovos que dá para carregar no começo
+	Start = 1,
 	Max = 7,
-	Prices = { 500, 5000, 50000, 500000, 5000000, 50000000 }, -- preço para ir de 1->2, 2->3, ...
+	Prices = { 500e3, 25e6, 1e9, 750e9, 50e12, 5e15 }, -- 1->2, 2->3, ...
 }
 
 GameConfig.Barn = {
-	StartSlots = 6,
-	MaxSlots = 12,
-	SlotPrices = { 1000, 10000, 100000, 1000000, 10000000, 100000000 }, -- 7º slot, 8º, ...
+	StartSlots = 10,
+	MaxSlots = 30,
+	SlotsPerFloor = 10, -- um andar novo a cada 10 slots
+	-- preço do 11º slot, 12º, ... 30º
+	SlotPrices = {
+		1e6, 10e6, 25e6, 50e6, 100e6, 200e6, 350e6, 600e6, 1e9, 2.5e9,
+		5e9, 10e9, 20e9, 35e9, 60e9, 100e9, 200e9, 350e9, 500e9, 750e9,
+	},
 	FullMessageCooldown = 4,
 }
 
-GameConfig.Sell = {
-	IncomeSeconds = 60, -- animal vendido vale "60 segundos" da renda dele
-	ConfirmFromRarityOrder = 5, -- pede confirmação a partir de Lendário
+GameConfig.Level = {
+	IncomeMultiplier = 1.25, -- cada nível multiplica a renda por 1,25
+	CostGrowth = 1.3, -- cada nível custa 30% a mais
+	BaseCostCap = 25000, -- custo do nível 2 = renda base (no máximo 25.000)
+	MaxLevel = 200,
 }
 
-GameConfig.Rebirth = { -- (Fase 2) já usado no cálculo de renda
-	BaseRequiredLevel = 40,
-	ExtraLevelPerRebirth = 10,
-	FirstMultiplier = 1.5,
-	MultiplierPerRebirth = 0.5,
+GameConfig.Sell = {
+	IncomeSeconds = 60, -- vender dá 60 segundos da renda base do animal (com mutação)
+	ConfirmFromRarityOrder = 5,
+}
+
+GameConfig.Rebirth = {
+	MaxRebirths = 29,
+	SpeedBase = 30, -- Velocidade exigida = 30 + 10 x nível (40, 50, 60...)
+	SpeedPerRebirth = 10,
+	MultiplierPerRebirth = 0.5, -- 1,5x, 2x, ... 11x no Rebirth 20
+	LateFrom = 20, -- depois do 20, cada rebirth dá só +0,25x (13,25x no 29)
+	LateMultiplierPerRebirth = 0.25,
 }
 
 GameConfig.Pickup = {
-	HoldDuration = 0.5, -- segurar para pegar o ovo
+	HoldDuration = 0.5,
 	PromptDistance = 10,
-	MaxDistance = 16, -- validação no servidor
+	MaxDistance = 16,
 	Cooldown = 0.25,
+	DroppedLifetime = 60, -- ovos derrubados ficam no chão por 60 s (qualquer um pega)
 }
+
+GameConfig.Bat = {
+	Cooldown = 1,
+	Range = 8,
+	RagdollTime = 2.5, -- quem leva a tacada cai e derruba os ovos
+	Knockback = 45,
+}
+
+-- =====================================================================
+-- GAMEPASSES (coloque os IDs do SEU jogo; 0 = desativado)
+-- =====================================================================
+
+GameConfig.GamePasses = {
+	{ Key = "VIP", Id = 0, Name = "VIP", Description = "Abre as portas de vidro dos nichos nas paredes: esconderijos seguros contra o tsunami!", Price = 149, Icon = "👑" },
+	{ Key = "SpeedBoost", Id = 0, Name = "Turbo", Description = "+20 de Velocidade para sempre.", Price = 129, Icon = "⚡" },
+} :: { GamePass }
+
+GameConfig.TestGamePassesInStudio = true -- no Studio, todo mundo ganha os passes para testar
+GameConfig.SpeedBoostAmount = 20
 
 -- =====================================================================
 -- DADOS / SEGURANÇA
 -- =====================================================================
 
 GameConfig.Data = {
-	StoreName = "FujaDoTsunamiOvos_v1",
+	StoreName = "FujaDoTsunamiOvos_v2",
 	AutoSaveInterval = 120,
 	MaxRetries = 5,
 	RetryBaseDelay = 1,
+	OfflineIncomeHours = 8, -- renda offline (como no original); 0 = desligado
 }
 
 GameConfig.AntiCheat = {
 	Enabled = true,
 	CheckInterval = 0.5,
-	SpeedTolerance = 1.8, -- aceita até 80% acima da velocidade permitida (lag)
+	SpeedTolerance = 1.8,
 	ExtraStuds = 14,
-	MaxViolations = 4, -- violações seguidas antes de puxar o jogador de volta
+	MaxViolations = 4,
 }
 
 -- =====================================================================
@@ -614,11 +512,8 @@ GameConfig.Sounds = {
 	Collect = "rbxasset://sounds/electronicpingshort.wav",
 	Pickup = "rbxasset://sounds/electronicpingshort.wav",
 	Error = "rbxasset://sounds/electronicpingshort.wav",
+	Bat = "rbxasset://sounds/swordslash.wav",
 }
-
--- =====================================================================
--- INTERFACE
--- =====================================================================
 
 GameConfig.UI = {
 	AbbreviateFrom = 10000, -- abaixo disso mostra "$7,110"; acima "$12.3K"
@@ -630,37 +525,58 @@ GameConfig.UI = {
 
 GameConfig.RarityById = {} :: { [string]: Rarity }
 GameConfig.EggsById = {} :: { [string]: Egg }
-GameConfig.EggsByRarity = {} :: { [string]: { Egg } }
+GameConfig.EggByRarity = {} :: { [string]: Egg }
 GameConfig.AnimalsById = {} :: { [string]: Animal }
 GameConfig.AnimalsByRarity = {} :: { [string]: { Animal } }
+GameConfig.MutationsById = {} :: { [string]: Mutation }
 GameConfig.WaveTypesById = {} :: { [string]: WaveType }
+GameConfig.GamePassesByKey = {} :: { [string]: GamePass }
 
 for _, rarity in GameConfig.Rarities do
 	GameConfig.RarityById[rarity.Id] = rarity
-	GameConfig.EggsByRarity[rarity.Id] = {}
 	GameConfig.AnimalsByRarity[rarity.Id] = {}
 end
 
 for _, egg in GameConfig.Eggs do
 	assert(GameConfig.RarityById[egg.Rarity], "Ovo com raridade desconhecida: " .. egg.Id)
 	GameConfig.EggsById[egg.Id] = egg
-	table.insert(GameConfig.EggsByRarity[egg.Rarity], egg)
+	GameConfig.EggByRarity[egg.Rarity] = egg
 end
 
-for _, animal in GameConfig.Animals do
-	assert(GameConfig.RarityById[animal.Rarity], "Animal com raridade desconhecida: " .. animal.Id)
-	GameConfig.AnimalsById[animal.Id] = animal
-	table.insert(GameConfig.AnimalsByRarity[animal.Rarity], animal)
+for _, entry in GameConfig.Animals do
+	assert(GameConfig.RarityById[entry.Rarity], "Animal com raridade desconhecida: " .. entry.Id)
+	assert(GameConfig.AnimalsById[entry.Id] == nil, "Animal repetido: " .. entry.Id)
+	GameConfig.AnimalsById[entry.Id] = entry
+	table.insert(GameConfig.AnimalsByRarity[entry.Rarity], entry)
 end
 
-for _, egg in GameConfig.Eggs do
-	for _, entry in egg.Animals do
-		assert(GameConfig.AnimalsById[entry.Animal], "Ovo " .. egg.Id .. " aponta para animal inexistente: " .. entry.Animal)
+for _, list in GameConfig.AnimalsByRarity do
+	table.sort(list, function(a, b)
+		return a.Income < b.Income
+	end)
+end
+
+for _, rarity in GameConfig.Rarities do
+	assert(GameConfig.EggByRarity[rarity.Id], "Raridade sem ovo: " .. rarity.Id)
+	assert(#GameConfig.AnimalsByRarity[rarity.Id] > 0, "Raridade sem animais: " .. rarity.Id)
+end
+
+for _, areaConfig in GameConfig.Areas do
+	if areaConfig.Rarity then
+		assert(GameConfig.RarityById[areaConfig.Rarity], "Área com raridade desconhecida: " .. areaConfig.Id)
 	end
+end
+
+for _, mutation in GameConfig.Mutations do
+	GameConfig.MutationsById[mutation.Id] = mutation
 end
 
 for _, waveType in GameConfig.Waves.Types do
 	GameConfig.WaveTypesById[waveType.Id] = waveType
+end
+
+for _, pass in GameConfig.GamePasses do
+	GameConfig.GamePassesByKey[pass.Key] = pass
 end
 
 return GameConfig

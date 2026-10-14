@@ -21,6 +21,7 @@ local PlayerData = require(script.Parent.Parent.PlayerData)
 local Sounds = require(script.Parent.Parent.Sounds)
 local Theme = require(script.Parent.Parent.UI.Theme)
 local UIKit = require(script.Parent.Parent.UI.UIKit)
+local HUD = require(script.Parent.Parent.UI.HUD)
 
 local WorldFx = {}
 
@@ -66,7 +67,9 @@ local function updateEggIncome(label: Instance)
 	if animal and PlayerData.IsDiscovered(animalId) then
 		local snapshot = PlayerData.Get()
 		local rebirths = if snapshot then snapshot.Rebirths else 0
-		label.Text = Format.PerSecond(Formulas.AnimalIncome(animalId, rebirths))
+		local mutation = label:GetAttribute("Mutation")
+		local mutationId = if typeof(mutation) == "string" then mutation else nil
+		label.Text = Format.PerSecond(Formulas.AnimalIncome(animalId, rebirths, 1, mutationId))
 	else
 		label.Text = "???"
 	end
@@ -223,6 +226,26 @@ local function onEffect(name: string, data: { [string]: any })
 	elseif name == "WaveHit" then
 		flash(Color3.fromRGB(40, 130, 230))
 		Sounds.Play("WaveHit", 1, 0.8)
+	elseif name == "Knockback" then
+		-- levou uma tacada: cai e é empurrado (o cliente é dono da física do personagem)
+		local direction = data.Direction
+		local duration = if typeof(data.Time) == "number" then math.clamp(data.Time, 0.5, 4) else 2.5
+		local force = if typeof(data.Force) == "number" then math.clamp(data.Force, 0, 100) else 40
+		local character = Players.LocalPlayer.Character
+		local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+		local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+		if humanoid and root and root:IsA("BasePart") and typeof(direction) == "Vector3" then
+			flash(Color3.fromRGB(255, 200, 60))
+			Sounds.Play("Bat", 1, 0.8)
+			humanoid.PlatformStand = true
+			root.AssemblyLinearVelocity = direction * force + Vector3.new(0, force * 0.6, 0)
+			task.delay(duration, function()
+				if humanoid.Parent then
+					humanoid.PlatformStand = false
+					humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+				end
+			end)
+		end
 	end
 end
 
@@ -283,6 +306,87 @@ function WorldFx.Start()
 	end)
 
 	Net.Effect.OnClientEvent:Connect(onEffect)
+
+	local localPlayer = Players.LocalPlayer
+
+	-- Portas VIP: quem tem VIP atravessa (só no próprio cliente; o servidor confere)
+	local function updateDoor(door: Instance)
+		if door:IsA("BasePart") then
+			door.CanCollide = localPlayer:GetAttribute("Pass_VIP") ~= true
+		end
+	end
+	local function updateAllDoors()
+		for _, door in CollectionService:GetTagged("VipDoor") do
+			updateDoor(door)
+		end
+	end
+	CollectionService:GetInstanceAddedSignal("VipDoor"):Connect(updateDoor)
+	localPlayer:GetAttributeChangedSignal("Pass_VIP"):Connect(updateAllDoors)
+	updateAllDoors()
+
+	-- Botões de celeiro (subir nível, comprar slot) só aparecem para o dono
+	local function updatePrompt(prompt: Instance)
+		if not prompt:IsA("ProximityPrompt") then
+			return
+		end
+		local function apply()
+			prompt.Enabled = prompt:GetAttribute("OwnerUserId") == localPlayer.UserId
+		end
+		prompt:GetAttributeChangedSignal("OwnerUserId"):Connect(apply)
+		apply()
+	end
+	CollectionService:GetInstanceAddedSignal("OwnerPrompt"):Connect(updatePrompt)
+	for _, prompt in CollectionService:GetTagged("OwnerPrompt") do
+		updatePrompt(prompt)
+	end
+
+	-- Anel ciano: pisou dentro = abre os UPGRADES; saiu = fecha
+	local ringCenter = GameConfig.Map.UpgradeRingPosition
+	local ringRadius = GameConfig.Map.UpgradeRingRadius
+	local insideRing = false
+	task.spawn(function()
+		while true do
+			task.wait(0.2)
+			local character = localPlayer.Character
+			local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+			local inside = false
+			if root and root:IsA("BasePart") then
+				local offset = root.Position - ringCenter
+				inside = Vector2.new(offset.X, offset.Z).Magnitude <= ringRadius and math.abs(offset.Y) < 8
+			end
+			if inside ~= insideRing then
+				insideRing = inside
+				if inside then
+					Sounds.Play("Click", 1.4, 0.5)
+					HUD.OpenPanel("Upgrades")
+				else
+					HUD.ClosePanel("Upgrades")
+				end
+			end
+		end
+	end)
+
+	-- Placa do Ovo Celestial (contagem regressiva no pedestal)
+	local gameState = ReplicatedStorage:WaitForChild("GameState")
+	task.spawn(function()
+		while true do
+			local text: string
+			if gameState:GetAttribute("CelestialActive") == true then
+				text = "🌟 OVO CELESTIAL AQUI!"
+			else
+				local at = gameState:GetAttribute("CelestialAt")
+				text = if typeof(at) == "number"
+					then "OVO CELESTIAL EM " .. Format.Time(at - Workspace:GetServerTimeNow())
+					else "OVO CELESTIAL"
+			end
+			for _, label in CollectionService:GetTagged("CelestialSign") do
+				if label:IsA("TextLabel") then
+					label.Text = text
+				end
+			end
+			task.wait(0.5)
+		end
+	end)
 end
 
 return WorldFx
