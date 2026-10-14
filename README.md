@@ -53,6 +53,12 @@ Pelo terminal, o mesmo processo: `rokit install`, `rojo plugin install` e `rojo 
 
 > No modo de edição o mundo aparece vazio, e isso é normal: o mapa é montado quando o jogo começa.
 
+**Atualizações direto no seu jogo (sem baixar arquivo):** o script `scripts/publish-to-roblox.sh`
+monta o jogo e envia para a sua experiência pela Open Cloud do Roblox. Ele precisa de três variáveis
+de ambiente: `ROBLOX_API_KEY` (chave com permissão "universe-places: write"), `ROBLOX_UNIVERSE_ID` e
+`ROBLOX_PLACE_ID`. Por padrão ele salva uma versão, que aparece quando você abre o lugar no Studio.
+Com `Published`, publica para os jogadores.
+
 **Configurações:** para salvar o progresso, ligue **Configurações do jogo → Segurança → Permitir acesso
 do Studio aos serviços de API**. Também coloque **Max Players = 8**.
 
