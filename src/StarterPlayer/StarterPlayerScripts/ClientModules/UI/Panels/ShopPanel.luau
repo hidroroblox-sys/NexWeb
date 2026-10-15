@@ -118,10 +118,10 @@ function ShopPanel.Create(gui: ScreenGui): UIKit.Panel
 	local carry = upgradeCard(scroll, 2, "💪", Colors.Orange, "Carregar")
 	local carryButton = greenButton(carry.Card, "Carry", 150, 12)
 
-	-- Dica dos slots (a compra é na placa do celeiro, como no original)
+	-- Dica dos slots (a compra é na placa do cercado, como no original)
 	local tip = UIKit.Label(scroll, {
 		Name = "Dica",
-		Text = "📦 Mais slots: use a placa verde na frente do seu celeiro!",
+		Text = "📦 Mais slots: use a placa verde na frente do seu cercado!",
 		Color = Colors.Muted,
 		Stroke = 0,
 		Size = UDim2.new(1, -12, 0, 30),

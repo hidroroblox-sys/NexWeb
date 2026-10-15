@@ -1,10 +1,11 @@
 --!strict
 --[[
-	BarnService: os 8 celeiros (bases) — igual ao original, com ovos.
-	  • cada jogador ganha um celeiro livre ao entrar (placa com o nome)
-	  • começa com 10 slots; a PLACA na frente compra +1 slot; a cada 10 slots um ANDAR novo
+	BarnService: as 8 bases — CERCADOS abertos, como no vídeo (nada de celeiro gigante).
+	  • cada jogador ganha um cercado livre ao entrar (portão com o nome)
+	  • começa com 10 slots; a PLACA na frente compra +1 slot; a cada 10 slots um ANDAR novo:
+	    deck de VIDRO com estrutura AZUL em cima do cercado
 	  • elevadores no fundo levam de um andar para o outro
-	  • ao ENTRAR no celeiro, os ovos carregados vão sozinhos para os slots livres
+	  • ao ENTRAR no cercado, os ovos carregados vão sozinhos para os slots livres
 	    (Ninho Surpresa abre na hora e vira um ovo)
 	  • ovos chocam com o tempo (continua offline) e viram animais
 	  • cada animal tem botão "Subir Nível" (renda x1,25 por nível)
@@ -72,10 +73,12 @@ local lastFullMessage: { [Player]: number } = {}
 local lastElevator: { [Player]: number } = {}
 
 local COLORS = {
-	Red = Color3.fromRGB(200, 45, 45),
-	RedDark = Color3.fromRGB(150, 30, 30),
+	Fence = Color3.fromRGB(250, 248, 240),
+	Frame = Color3.fromRGB(35, 120, 235),
+	FrameDark = Color3.fromRGB(20, 70, 170),
+	Glass = Color3.fromRGB(165, 228, 255),
 	Trim = Color3.fromRGB(250, 245, 235),
-	Floor = Color3.fromRGB(165, 115, 65),
+	Floor = Color3.fromRGB(222, 178, 118),
 	Hay = Color3.fromRGB(235, 200, 100),
 	Locked = Color3.fromRGB(90, 80, 70),
 	Pad = Color3.fromRGB(70, 210, 90),
@@ -100,6 +103,35 @@ local function part(parent: Instance, name: string, size: Vector3, cframe: CFram
 	p.BottomSurface = Enum.SurfaceType.Smooth
 	p.Parent = parent
 	return p
+end
+
+-- Peça de Plastic com studs no topo (chão, cerca, estrutura), como no vídeo
+local function studded(parent: Instance, name: string, size: Vector3, cframe: CFrame, color: Color3): Part
+	local p = part(parent, name, size, cframe, color, Enum.Material.Plastic)
+	if Map.Studs then
+		p.TopSurface = Enum.SurfaceType.Studs
+		p.BottomSurface = Enum.SurfaceType.Inlet
+	end
+	return p
+end
+
+-- Cerca branca entre dois pontos (coordenadas locais do cercado)
+local function fence(parent: Instance, origin: CFrame, from: Vector3, to: Vector3)
+	local direction = to - from
+	local length = direction.Magnitude
+	if length < 0.5 then
+		return
+	end
+	local center = (from + to) / 2
+	local look = CFrame.lookAt(center, to)
+	for _, height in { 1.4, 3 } do
+		studded(parent, "Trilho", Vector3.new(0.35, 0.5, length), origin * (look + Vector3.new(0, height, 0)), COLORS.Fence)
+	end
+	local posts = math.max(1, math.ceil(length / 4.5))
+	for i = 0, posts do
+		local point = from + direction * (i / posts)
+		studded(parent, "Estaca", Vector3.new(0.8, 3.8, 0.8), origin * CFrame.new(point + Vector3.new(0, 1.9, 0)), COLORS.Fence)
+	end
 end
 
 local function textLabel(parent: Instance, text: string, color: Color3): TextLabel
@@ -129,7 +161,7 @@ end
 
 local function buildBarn(index: number, origin: CFrame, parent: Instance): Barn
 	local model = Instance.new("Model")
-	model.Name = "Celeiro" .. index
+	model.Name = "Cercado" .. index
 	local size = Map.BarnSize
 	local w, h, d = size.X, size.Y, size.Z
 
@@ -137,20 +169,31 @@ local function buildBarn(index: number, origin: CFrame, parent: Instance): Barn
 		return origin * CFrame.new(x, y, z)
 	end
 
-	-- Chão de madeira
-	part(model, "Chao", Vector3.new(w, 1, d), at(0, -0.4, 0), COLORS.Floor, Enum.Material.WoodPlanks)
+	-- Chão do cercado (studs) — fica um pouco acima da grama
+	studded(model, "Chao", Vector3.new(w, 1, d), at(0, -0.4, 0), COLORS.Floor)
 
-	-- Paredes: fundo (+Z local) e laterais. A frente (-Z) fica aberta.
-	part(model, "ParedeFundo", Vector3.new(w, h, 1), at(0, h / 2, d / 2 - 0.5), COLORS.Red, Enum.Material.WoodPlanks)
+	-- Cerca branca nos lados e no fundo; na frente (-Z) só as pontas, com o PORTÃO no meio
+	local fenceFolder = Instance.new("Folder")
+	fenceFolder.Name = "Cerca"
+	fenceFolder.Parent = model
+	local hx, hz = w / 2 - 0.4, d / 2 - 0.4
+	local gate = 12
+	fence(fenceFolder, origin, Vector3.new(-hx, 0, -hz), Vector3.new(-hx, 0, hz))
+	fence(fenceFolder, origin, Vector3.new(-hx, 0, hz), Vector3.new(hx, 0, hz))
+	fence(fenceFolder, origin, Vector3.new(hx, 0, hz), Vector3.new(hx, 0, -hz))
+	fence(fenceFolder, origin, Vector3.new(hx, 0, -hz), Vector3.new(gate / 2 + 1, 0, -hz))
+	fence(fenceFolder, origin, Vector3.new(-gate / 2 - 1, 0, -hz), Vector3.new(-hx, 0, -hz))
+
+	-- Portão: dois postes azuis e a placa com o nome do dono
+	local gateHeight = h + 6
 	for _, side in { -1, 1 } do
-		part(model, "ParedeLado", Vector3.new(1, h * 0.6, d), at(side * (w / 2 - 0.5), h * 0.3, 0), COLORS.Red, Enum.Material.WoodPlanks)
-		part(model, "Pilar", Vector3.new(2, h + 2, 2), at(side * (w / 2 - 1), (h + 2) / 2, -d / 2 + 1), COLORS.Trim)
+		studded(model, "PostePortao", Vector3.new(1.4, gateHeight, 1.4), at(side * (gate / 2 + 0.7), gateHeight / 2, -hz), COLORS.Frame)
 	end
-	local beam = part(model, "Viga", Vector3.new(w, 4, 1.5), at(0, h + 2, -d / 2 - 0.8), COLORS.Trim)
-	local facadeLabel = Billboards.SurfaceText(beam, Enum.NormalId.Front, "Celeiro livre", COLORS.RedDark)
+	local beam = studded(model, "PlacaPortao", Vector3.new(gate + 2.8, 3, 0.8), at(0, gateHeight - 1.5, -hz), COLORS.Frame)
+	local facadeLabel = Billboards.SurfaceText(beam, Enum.NormalId.Front, "Base livre", Color3.new(1, 1, 1))
 
-	-- Placa flutuante com o nome do dono
-	local signAnchor = part(model, "PlacaDono", Vector3.new(1, 1, 1), at(0, MapLayout.FloorHeight(2) + h + 4, 0), COLORS.Trim)
+	-- Placa flutuante com o nome do dono (em cima do portão)
+	local signAnchor = part(model, "PlacaDono", Vector3.new(1, 1, 1), at(0, gateHeight + 4, -hz), COLORS.Trim)
 	signAnchor.Transparency = 1
 	signAnchor.CanCollide = false
 	signAnchor.CanQuery = false
@@ -160,7 +203,7 @@ local function buildBarn(index: number, origin: CFrame, parent: Instance): Barn
 	billboard.MaxDistance = 400
 	billboard.LightInfluence = 0
 	billboard.Parent = signAnchor
-	local ownerLabel = textLabel(billboard, "Celeiro livre", Color3.new(1, 1, 1))
+	local ownerLabel = textLabel(billboard, "Base livre", Color3.new(1, 1, 1))
 
 	-- Ponto de nascimento (na porta)
 	local spawn = Instance.new("SpawnLocation")
@@ -178,7 +221,7 @@ local function buildBarn(index: number, origin: CFrame, parent: Instance): Barn
 
 	-- Placa de COMPRAR SLOT (do lado de fora, perto da porta)
 	local signPost = part(model, "PlacaSlot", Vector3.new(7, 5, 0.6), origin * CFrame.new(MapLayout.SlotSignOffset + Vector3.new(0, 4.5, 0)), Color3.fromRGB(70, 210, 90), Enum.Material.SmoothPlastic)
-	part(model, "PlacaSlotPoste", Vector3.new(0.6, 2.5, 0.6), origin * CFrame.new(MapLayout.SlotSignOffset + Vector3.new(0, 1.25, 0)), COLORS.Floor, Enum.Material.Wood)
+	part(model, "PlacaSlotPoste", Vector3.new(0.6, 2.5, 0.6), origin * CFrame.new(MapLayout.SlotSignOffset + Vector3.new(0, 1.25, 0)), COLORS.Fence)
 	local signGui = Instance.new("SurfaceGui")
 	signGui.Face = Enum.NormalId.Front
 	signGui.SizingMode = Enum.SurfaceGuiSizingMode.PixelsPerStud
@@ -238,7 +281,8 @@ local function buildBarn(index: number, origin: CFrame, parent: Instance): Barn
 	}
 end
 
--- Andares de cima + elevadores (recria quando o número de andares muda)
+-- Andares de cima (decks de vidro com estrutura azul) + elevadores.
+-- Recria quando o número de andares muda.
 local function buildFloors(barn: Barn, floors: number)
 	if barn.BuiltFloors == floors and (floors == 1 or #barn.FloorsFolder:GetChildren() > 0) then
 		return
@@ -249,15 +293,40 @@ local function buildFloors(barn: Barn, floors: number)
 	local origin = barn.CFrame
 	local size = Map.BarnSize
 	local w, d = size.X, size.Z
+	local folder = barn.FloorsFolder
+
+	if floors > 1 then
+		-- Pilares azuis do chão até o último deck
+		local top = MapLayout.FloorHeight(floors) + 4
+		for _, x in { -1, 1 } do
+			for _, z in { -1, 0, 1 } do
+				studded(folder, "Pilar", Vector3.new(1.2, top, 1.2), origin * CFrame.new(x * (w / 2 - 0.6), top / 2, z * (d / 2 - 0.6)), COLORS.Frame)
+			end
+		end
+	end
 
 	for floor = 2, floors do
 		local y = MapLayout.FloorHeight(floor)
-		part(barn.FloorsFolder, "Andar" .. floor, Vector3.new(w, 1, d), origin * CFrame.new(0, y - 0.4, 0), COLORS.Floor, Enum.Material.WoodPlanks)
-		part(barn.FloorsFolder, "Fundo" .. floor, Vector3.new(w, 6, 1), origin * CFrame.new(0, y + 3, d / 2 - 0.5), COLORS.Red, Enum.Material.WoodPlanks)
-		for _, side in { -1, 1 } do
-			part(barn.FloorsFolder, "Grade", Vector3.new(1, 4, d), origin * CFrame.new(side * (w / 2 - 0.5), y + 2, 0), COLORS.Red, Enum.Material.WoodPlanks)
+		local deck = part(folder, "Deck" .. floor, Vector3.new(w, 0.6, d), origin * CFrame.new(0, y - 0.3, 0), COLORS.Glass, Enum.Material.Glass)
+		deck.Transparency = 0.45
+		-- moldura azul em volta do deck
+		for _, z in { -1, 1 } do
+			studded(folder, "Viga", Vector3.new(w + 0.4, 1, 1), origin * CFrame.new(0, y - 0.5, z * (d / 2 - 0.3)), COLORS.Frame)
 		end
-		part(barn.FloorsFolder, "GradeFrente", Vector3.new(w, 3, 1), origin * CFrame.new(0, y + 1.5, -d / 2 + 0.5), COLORS.Trim)
+		for _, x in { -1, 1 } do
+			studded(folder, "Viga", Vector3.new(1, 1, d), origin * CFrame.new(x * (w / 2 - 0.3), y - 0.5, 0), COLORS.Frame)
+		end
+		-- guarda-corpo de vidro nos lados e no fundo; na frente só uma barra azul
+		for _, x in { -1, 1 } do
+			local rail = part(folder, "GuardaCorpo", Vector3.new(0.3, 3.4, d), origin * CFrame.new(x * (w / 2 - 0.3), y + 1.7, 0), COLORS.Glass, Enum.Material.Glass)
+			rail.Transparency = 0.55
+		end
+		local back = part(folder, "GuardaCorpo", Vector3.new(w, 3.4, 0.3), origin * CFrame.new(0, y + 1.7, d / 2 - 0.3), COLORS.Glass, Enum.Material.Glass)
+		back.Transparency = 0.55
+		studded(folder, "Barra", Vector3.new(w, 0.5, 0.5), origin * CFrame.new(0, y + 3.2, -d / 2 + 0.3), COLORS.Frame)
+		for _, x in { -1, 1 } do
+			studded(folder, "BarraTopo", Vector3.new(0.5, 0.5, d), origin * CFrame.new(x * (w / 2 - 0.3), y + 3.6, 0), COLORS.FrameDark)
+		end
 	end
 
 	-- Elevadores: sobe no lado esquerdo, desce no direito
@@ -399,9 +468,25 @@ local function renderSlot(barn: Barn, slotIndex: number)
 	end
 end
 
+-- Renda total por segundo (aparece em rosa em cima da cabeça do jogador)
+local function updateIncome(player: Player, profile: DataService.Profile)
+	local total = 0
+	for _, data in profile.Data.Slots do
+		if data.Hatched then
+			total += Formulas.AnimalIncome(data.AnimalId, profile.Data.Rebirths, data.Level, data.Mutation)
+		end
+	end
+	if player:GetAttribute("IncomePerSecond") ~= total then
+		player:SetAttribute("IncomePerSecond", total)
+	end
+end
+
 local function renderAll(barn: Barn)
 	local owner = barn.Owner
 	local profile = if owner then DataService.Get(owner) else nil
+	if owner and profile then
+		updateIncome(owner, profile)
+	end
 	local slots = if profile then profile.Data.BarnSlots else GameConfig.Barn.StartSlots
 	buildFloors(barn, if profile then Formulas.FloorOfSlot(slots) else 1)
 	for slotIndex = 1, GameConfig.Barn.MaxSlots do
@@ -411,7 +496,7 @@ local function renderAll(barn: Barn)
 end
 
 -- ---------------------------------------------------------------------
--- Regras do celeiro
+-- Regras do cercado
 -- ---------------------------------------------------------------------
 
 local function getRoot(player: Player): BasePart?
@@ -450,7 +535,7 @@ local function placeCarried(barn: Barn, player: Player)
 			local now = os.clock()
 			if now - (lastFullMessage[player] or 0) > GameConfig.Barn.FullMessageCooldown then
 				lastFullMessage[player] = now
-				NotifyService.Notify(player, "Celeiro cheio! Venda um animal ou compre mais slots na placa", "warning")
+				NotifyService.Notify(player, "Cercado cheio! Venda um animal ou compre mais slots na placa", "warning")
 			end
 			break
 		end
@@ -480,7 +565,7 @@ local function placeCarried(barn: Barn, player: Player)
 		end
 	end
 	if placed > 0 then
-		local text = if placed == 1 then "Ovo colocado no celeiro! 🥚" else string.format("%d ovos colocados no celeiro! 🥚", placed)
+		local text = if placed == 1 then "Ovo colocado no cercado! 🥚" else string.format("%d ovos colocados no cercado! 🥚", placed)
 		NotifyService.Notify(player, text, "success")
 		SyncService.Push(player)
 	end
@@ -577,7 +662,7 @@ function BarnService.Assign(player: Player): boolean
 			barn.Owner = player
 			barnOf[player] = barn
 			barn.OwnerLabel.Text = "🏠 " .. player.DisplayName
-			barn.FacadeLabel.Text = "Celeiro de " .. player.DisplayName
+			barn.FacadeLabel.Text = "Base de " .. player.DisplayName
 			player:SetAttribute("BarnIndex", barn.Index)
 			player.RespawnLocation = barn.Spawn
 			local profile = DataService.Get(player)
@@ -599,8 +684,8 @@ function BarnService.Release(player: Player)
 	barnOf[player] = nil
 	lastFullMessage[player] = nil
 	barn.Owner = nil
-	barn.OwnerLabel.Text = "Celeiro livre"
-	barn.FacadeLabel.Text = "Celeiro livre"
+	barn.OwnerLabel.Text = "Base livre"
+	barn.FacadeLabel.Text = "Base livre"
 	renderAll(barn)
 end
 
@@ -628,7 +713,7 @@ function BarnService.BuySlot(player: Player): (boolean, string)
 	local data = profile.Data
 	local price = Formulas.SlotPrice(data.BarnSlots)
 	if not price then
-		return false, "Seu celeiro já está no tamanho máximo!"
+		return false, "Seu cercado já está no tamanho máximo!"
 	end
 	if not Wallet.TrySpend(player, price) then
 		return false, "Dinheiro insuficiente! Faltam " .. Format.Money(math.max(0, price - data.Money))
@@ -651,7 +736,7 @@ function BarnService.LevelUp(player: Player, slotIndex: number, amount: number):
 	local barn = barnOf[player]
 	local profile = DataService.Get(player)
 	if not barn or not profile then
-		return false, "Seu celeiro ainda está carregando."
+		return false, "Seu cercado ainda está carregando."
 	end
 	local data = profile.Data.Slots[tostring(slotIndex)]
 	if not data or not data.Hatched then
@@ -676,7 +761,7 @@ function BarnService.SellSlot(player: Player, slotIndex: number): (boolean, stri
 	local barn = barnOf[player]
 	local profile = DataService.Get(player)
 	if not barn or not profile then
-		return false, "Seu celeiro ainda está carregando."
+		return false, "Seu cercado ainda está carregando."
 	end
 	local key = tostring(slotIndex)
 	local data = profile.Data.Slots[key]
@@ -698,7 +783,7 @@ end
 
 function BarnService.Init()
 	local folder = Instance.new("Folder")
-	folder.Name = "Celeiros"
+	folder.Name = "Cercados"
 	folder.Parent = Workspace:FindFirstChild("Mapa") or Workspace
 
 	for _, layout in MapLayout.Barns do
@@ -707,7 +792,7 @@ function BarnService.Init()
 		renderAll(barn)
 		barn.SignPrompt.Triggered:Connect(function(player)
 			if barn.Owner ~= player then
-				NotifyService.Notify(player, "Essa placa é do dono deste celeiro!", "warning")
+				NotifyService.Notify(player, "Essa placa é do dono deste cercado!", "warning")
 				return
 			end
 			if not RateLimit.Check(player, "BuySlot", 0.3) then
@@ -791,6 +876,7 @@ function BarnService.Init()
 							end
 						end
 					end
+					updateIncome(owner, profile)
 				end
 			end
 		end

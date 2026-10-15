@@ -441,6 +441,136 @@ function UIKit.Button(props: ButtonProps): Button
 end
 
 -- ---------------------------------------------------------------------
+-- Ladrilho do HUD (como no vídeo): quadrado escuro, ícone grande e nome embaixo
+-- ---------------------------------------------------------------------
+
+export type TileProps = {
+	Name: string,
+	Parent: Instance,
+	LayoutOrder: number,
+	Icon: string,
+	Text: string,
+	Highlight: Color3?, -- borda colorida (ex.: dourada na Loja)
+	Tag: string?, -- etiqueta vermelha em cima (ex.: "Novo")
+	OnClick: () -> (),
+}
+
+export type Tile = {
+	Holder: Frame,
+	Face: TextButton,
+	SetBadge: (text: string?) -> (),
+}
+
+local TILE_BG = Color3.fromRGB(52, 46, 44)
+local TILE_EDGE = Color3.fromRGB(18, 15, 14)
+local TILE_INNER = Color3.fromRGB(95, 86, 80)
+
+function UIKit.Tile(props: TileProps): Tile
+	local holder = UIKit.Frame(props.Parent, props.Name, UDim2.fromScale(1, 1))
+	holder.LayoutOrder = props.LayoutOrder
+	local pressScale = Instance.new("UIScale")
+	pressScale.Parent = holder
+
+	local face = Instance.new("TextButton")
+	face.Name = "Face"
+	face.Text = ""
+	face.AutoButtonColor = false
+	face.BorderSizePixel = 0
+	face.BackgroundColor3 = TILE_BG
+	face.BackgroundTransparency = 0.12
+	face.Size = UDim2.fromScale(1, 1)
+	face.Parent = holder
+	UIKit.Corner(face, UDim.new(0, 10))
+	UIKit.Stroke(face, 3, props.Highlight or TILE_EDGE, true)
+
+	local inner = UIKit.Frame(face, "Borda", UDim2.new(1, -8, 1, -8), UDim2.fromOffset(4, 4))
+	UIKit.Corner(inner, UDim.new(0, 7))
+	UIKit.Stroke(inner, 1.5, props.Highlight or TILE_INNER, true)
+
+	UIKit.Icon(face, props.Icon, UDim2.fromScale(0.74, 0.58), UDim2.fromScale(0.13, 0.06))
+	UIKit.Label(face, {
+		Name = "Text",
+		Text = props.Text,
+		Font = Theme.Fonts.Title,
+		Size = UDim2.new(1, -6, 0.3, 0),
+		Position = UDim2.new(0, 3, 0.66, 0),
+		MaxTextSize = 20,
+		Stroke = 2,
+		StrokeColor = Colors.Ink,
+	})
+
+	if props.Tag then
+		local tag = UIKit.Frame(holder, "Etiqueta", UDim2.new(0.62, 0, 0, 20), UDim2.new(0.5, 0, 0, -6), Colors.Red)
+		tag.AnchorPoint = Vector2.new(0.5, 0.5)
+		tag.ZIndex = 4
+		UIKit.Corner(tag, UDim.new(0, 6))
+		UIKit.Stroke(tag, 2, Colors.Ink, true)
+		UIKit.Label(tag, {
+			Name = "Texto",
+			Text = props.Tag,
+			Font = Theme.Fonts.Title,
+			Size = UDim2.fromScale(0.9, 0.85),
+			Position = UDim2.fromScale(0.05, 0.08),
+			MaxTextSize = 16,
+			Stroke = 1.5,
+			ZIndex = 5,
+		})
+	end
+
+	local badge = UIKit.Frame(holder, "Badge", UDim2.fromOffset(26, 26), UDim2.new(1, -2, 0, 2), Colors.Red)
+	badge.AnchorPoint = Vector2.new(0.5, 0.5)
+	badge.Visible = false
+	badge.ZIndex = 6
+	UIKit.Corner(badge, UDim.new(0.5, 0))
+	UIKit.Stroke(badge, 2.5, Colors.White, true)
+	local badgeLabel = UIKit.Label(badge, {
+		Name = "Count",
+		Text = "!",
+		Font = Theme.Fonts.Title,
+		Size = UDim2.fromScale(0.8, 0.8),
+		Position = UDim2.fromScale(0.1, 0.12),
+		MaxTextSize = 17,
+		Stroke = 1.5,
+		ZIndex = 7,
+	})
+
+	face.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			UIKit.Tween(pressScale, 0.06, { Scale = 0.92 })
+		end
+	end)
+	face.InputEnded:Connect(function()
+		UIKit.Tween(pressScale, 0.16, { Scale = 1 }, Enum.EasingStyle.Back)
+	end)
+	face.MouseEnter:Connect(function()
+		UIKit.Tween(pressScale, 0.12, { Scale = 1.06 })
+	end)
+	face.MouseLeave:Connect(function()
+		UIKit.Tween(pressScale, 0.12, { Scale = 1 })
+	end)
+	local lastClick = 0
+	face.Activated:Connect(function()
+		local now = os.clock()
+		if now - lastClick < 0.15 then
+			return
+		end
+		lastClick = now
+		task.spawn(props.OnClick)
+	end)
+
+	return {
+		Holder = holder,
+		Face = face,
+		SetBadge = function(text: string?)
+			badge.Visible = text ~= nil
+			if text ~= nil then
+				badgeLabel.Text = if text == "" then "!" else text
+			end
+		end,
+	}
+end
+
+-- ---------------------------------------------------------------------
 -- Cápsula (HUD)
 -- ---------------------------------------------------------------------
 

@@ -5,7 +5,7 @@ os números seguem o original, com base na pesquisa em `reports/`. Tudo o que vo
 nomes, sons e interface) é feito do zero, nada é copiado do jogo original.
 
 Você corre pelo corredor, pega ovos e se esconde nas trincheiras quando a onda vem. Depois leva os
-ovos para o seu celeiro, eles chocam, e os animais dão dinheiro por segundo. Com esse dinheiro você
+ovos para o seu cercado, eles chocam, e os animais dão dinheiro por segundo. Com esse dinheiro você
 compra Velocidade e faz Rebirth.
 
 ---
@@ -14,24 +14,27 @@ compra Velocidade e faz Rebirth.
 
 | Sistema | Como ficou |
 |---|---|
-| **Mapa** | Corredor reto murado: Início (sem ovos) → Comum → Incomum → Raro → Épico → Lendário → Mítico → Cósmico I e II → Secreto I, II e III → Celestial → **Torre do Tsunami** (segura) |
-| **Trincheiras** | Entre as áreas (e mais uma no meio das áreas longas), com rampa para sair |
+| **Visual** | Igual ao vídeo: tudo de **Plastic com studs**, chão do corredor **azul**, paredes **laranja** de 80 studs com o nome de cada área pintado na cor da raridade, "VIP" verde-limão nos nichos, parede **rosa** no fim. A base fica numa grama verde-limão com praia, guarda-sóis e coqueiros |
+| **Mapa** | Corredor reto **bem largo (200 studs) e comprido (~6.600 studs)**: Início (areia, sem ovos) → Área Comum → Incomum → Rara → Épica → Lendária → Mítica → Cósmica I e II → Secreta I, II e III → Celestial → **Torre do Tsunami** (segura) |
+| **Trincheiras** | Faixas de **areia** mais baixas, de parede a parede, com **barris vermelho/branco** na beira. Uma no começo de cada área e depois a cada 100 a 260 studs (mais longe no fundo), com rampa para sair. São 37 no total |
 | **Nichos VIP** | Portas de vidro nas duas paredes de cada área; só quem tem VIP entra e fica seguro |
 | **Ondas** | Super Lenta 85 😁, Lenta 120 🙂, Média 140 😐, Rápida 180 😠, Relâmpago 220 😈. Cores: azul-claro, azul, verde-claro, vermelho e roxo brilhante. As maiores são mais altas, o nome e o emoji flutuam sobre a onda, e as ondas podem vir juntas |
 | **Aviso** | Contador "PRÓXIMA ONDA" sempre no topo, bipes nos últimos 5 s e sirene quando a onda nasce |
-| **Morte** | Ao tocar na onda você morre, os ovos caem onde você morreu (qualquer um pode pegar por 60 s) e você renasce no celeiro |
+| **Morte** | Ao tocar na onda você morre, os ovos caem onde você morreu (qualquer um pode pegar por 60 s) e você renasce no cercado |
+| **Soltar** | Botão rosa **🗑 Soltar** (ou tecla G) aparece quando você carrega ovos e larga todos no chão |
 | **Velocidade** | Começa em 16. Pacotes **+1, +5 e +10** no **anel ciano** do lobby. O preço sobe 17% por nível e o +10 sai pela metade |
 | **Carregar** | De 1 a 7 ovos. Preços: $500K, $25M, $1B, $750B… |
-| **Celeiro** | **10 slots** iniciais. A **placa verde** na frente compra +1 slot, e a cada 10 slots surge um **andar novo** (até 30, com elevadores) |
+| **Base (cercado)** | Um **cercado aberto** com cerca branca e portão azul com o seu nome (nada de celeiro gigante). **10 slots** iniciais. A **placa verde** ao lado do portão compra +1 slot, e a cada 10 slots surge um **deck de vidro** com estrutura azul por cima (até 30 slots em 3 andares, com elevadores) |
+| **Renda na cabeça** | Em cima da cabeça de cada jogador aparece em **rosa** quanto os animais dele rendem por segundo (ex.: "$9.44K/s") |
 | **Coleta** | Um coletor verde por slot: é só pisar nele. A renda continua **offline** (até 8 h) |
-| **Nível do animal** | Botão "Subir Nível" (tecla F) em cada animal: a renda é ×1,25 por nível |
+| **Nível do animal** | Botão "Subir Nível" (tecla F) em cada animal: a renda é ×1,25 por nível. A placa do animal mostra nome, **Nível** (roxo), raridade, mutação e $/s |
 | **Rebirth** | Botão roxo. Precisa de Velocidade **40, 50, 60…**; o dinheiro vai de **1,5x a 11x** (R20) e depois a 13,25x (R29). Zera só a Velocidade |
 | **Raridades** | 10 raridades, de Comum a Divino, com as cores do original e 77 animais nas mesmas escalas de renda ($2/s até $330M/s) |
 | **Mutações** | Esmeralda 1,5x, Dourado 1,5x, Rubi 2x, Elétrico 3x e Diamante 4,25x, com cor, brilho e partículas |
-| **Ninho Surpresa** | É o "Lucky Block" com ovos: abre no celeiro com mais chance de mutação e às vezes de raridade maior |
+| **Ninho Surpresa** | É o "Lucky Block" com ovos: abre no cercado com mais chance de mutação e às vezes de raridade maior |
 | **Ovo Celestial** | Aparece **1 por vez a cada 15 min** no fim do corredor, com contagem para todos; às vezes vem um Ovo Divino |
-| **Taco** | Todo mundo ganha um. A tacada no corredor faz a pessoa **derrubar os ovos** e cair por 2,5 s; no celeiro não funciona |
-| **HUD** | Esquerda: **Loja**, **Rebirth** (roxo) e **Índice**. Direita: **Chocando** e **Celeiro** (os botões que você pediu). Topo: contador da onda, área atual e Celestial. Embaixo: Velocidade e dinheiro |
+| **Taco** | Todo mundo ganha um. A tacada no corredor faz a pessoa **derrubar os ovos** e cair por 2,5 s; no cercado não funciona |
+| **HUD** | Igual ao vídeo: **grade de ladrilhos escuros** na esquerda: [Loja (borda dourada, "Novo")] [VIP] / [Índice] [Renascer] / [**Chocando**] [**Cercado**] (os botões que você pediu). Topo: **nome da área**, contador da onda e Celestial. Embaixo à esquerda: Velocidade, ovos carregados, renascimentos e dinheiro |
 
 Os **tempos de chocar** são os que você pediu: 1 min, 5 min, 15 min, 30 min, 1 h, 2h30, 6 h e 12 h
 (Secreto, Celestial e Divino = 12 h).
@@ -74,21 +77,22 @@ No menu **Teste**, escolha **Clientes e servidores**, coloque **2 jogadores** e 
 
 | # | O que fazer | O que deve acontecer |
 |---|---|---|
-| 1 | Entrar | Você nasce no seu celeiro e o nome aparece na placa. Do lado de fora, a placa verde mostra "+1 SLOT $1M" |
-| 2 | Olhar o topo | Aparecem "🌊 PRÓXIMA ONDA: 0:20" e a pílula "🌟 Celestial 5:00" |
-| 3 | Pisar no **anel ciano** entre os celeiros | Abre o painel UPGRADES com Velocidade +1/+5/+10 e Carregar; ao sair do anel ele fecha |
-| 4 | Ir ao corredor e pegar um ovo (segurar E) | O ovo vai para as costas. Alguns vêm com mutação (texto colorido e brilho) ou como Ninho Surpresa (caixa com "?") |
+| 1 | Entrar | Você nasce no seu cercado e o nome aparece no portão azul. Ao lado, a placa verde mostra "+1 SLOT $1M". Em cima da sua cabeça aparece "$0/s" em rosa |
+| 2 | Olhar o topo | Aparecem "Base", "🌊 Próxima onda: 0:20" e a pílula "🌟 Celestial 5:00" |
+| 3 | Pisar no **anel ciano** entre os cercados | Abre o painel UPGRADES com Velocidade +1/+5/+10 e Carregar; ao sair do anel ele fecha |
+| 4 | Ir ao corredor e pegar um ovo (segurar E) | O topo mostra "Área Comum". O ovo vai para as costas e aparece o botão rosa **Soltar**. Alguns ovos vêm com mutação (texto colorido e brilho) ou como Ninho Surpresa (caixa com "?") |
 | 5 | Esperar a onda | Bipes nos últimos 5 s e depois a sirene. Do fundo vem a onda colorida, com o nome e o emoji em cima |
-| 6 | Ficar fora da trincheira | Você morre, o ovo cai no chão (dá para pegar de novo) e você renasce no celeiro |
-| 7 | Pular numa trincheira | A onda passa por cima e você sobrevive |
+| 6 | Ficar fora da trincheira | Você morre, o ovo cai no chão (dá para pegar de novo) e você renasce no cercado |
+| 7 | Pular numa trincheira (faixa de areia com barris) | A onda passa por cima e você sobrevive |
 | 8 | Entrar no nicho VIP (porta de vidro na parede) | Com VIP você atravessa a porta e fica seguro; sem VIP a porta bloqueia |
-| 9 | Voltar ao celeiro com o ovo | O ovo vai sozinho para um ninho e mostra "Choca em 0:59". O Ninho Surpresa abre na hora |
-| 10 | Ovo chocou | O animal aparece com placa (nome, raridade, $/s e "Nv. 1"). O coletor verde enche; pise nele para pegar |
+| 9 | Voltar ao cercado com o ovo | O ovo vai sozinho para um ninho e mostra "Choca em 0:59". O Ninho Surpresa abre na hora |
+| 10 | Ovo chocou | O animal aparece com placa (nome, "Nível 1", raridade e $/s) e o número rosa em cima da sua cabeça sobe. O coletor verde enche; pise nele para pegar |
 | 11 | Chegar perto do animal e apertar **F** | "Subir Nível" mostra o preço; a renda sobe ×1,25 |
-| 12 | Comprar slots na placa até o 11º | Aparece o **2º andar**. Use os elevadores (discos azuis no fundo) |
-| 13 | Com Velocidade 40, abrir **Rebirth** | Mostra 1x ➜ 1,5x; ao renascer, a Velocidade volta para 16 e o resto fica |
+| 12 | Comprar slots na placa até o 11º | Aparece o **deck de vidro do 2º andar**. Use os elevadores (discos azuis no fundo) |
+| 13 | Com Velocidade 40, abrir **Renascer** | Mostra 1x ➜ 1,5x; ao renascer, a Velocidade volta para 16 e o resto fica |
 | 14 | Equipar o **Taco** (tecla 1) e acertar o outro jogador no corredor | Ele cai e derruba os ovos que estava carregando |
 | 15 | Esperar 5 min (ou baixar `Celestial.FirstDelay`) | Aviso para todos: "Um OVO CELESTIAL apareceu no fim do corredor!" |
+| 16 | Carregando ovos, apertar **Soltar** (ou G) | Os ovos caem na sua frente e o botão some |
 
 **Para testar mais rápido:** no `GameConfig.luau`, diminua `HatchTime`, `Celestial.FirstDelay`,
 `Waves.FirstWaveDelay` e `Speed.BasePrice`.
@@ -113,8 +117,9 @@ animais, mutações, preços, rebirth, gamepasses e sons.
 src/ServerScriptService/
   Main.server.luau      entrada/saída, renascer, ovos caem ao morrer
   Services/
-    MapBuilder          corredor, trincheiras, nichos VIP, torre, anel de upgrades
-    BarnService         celeiros com andares, placa de slot, chocar, coletores, nível, renda offline
+    MapBuilder          corredor com studs, trincheiras de areia, nichos VIP, torre, praia, anel de upgrades
+    BarnService         cercados com decks de vidro, placa de slot, chocar, coletores, nível, renda offline
+    IncomeTag           o "$/s" rosa em cima da cabeça
     EggService          ovos por área, mutações, Ninho Surpresa, Ovo Celestial, ovos derrubados
     TsunamiService      ondas (morte checada a cada frame) + esconderijos
     ShopService         velocidade, carregar, slots, nível, vender, rebirth (tudo validado)
@@ -125,7 +130,7 @@ src/ServerScriptService/
 src/ReplicatedStorage/Shared/   GameConfig, MapLayout, Formulas, Format, Net, Types, Signal
 src/StarterPlayer/StarterPlayerScripts/ClientModules/
   UI/        Theme, UIKit, HUD, Toasts, ConfirmDialog
-  UI/Panels/ Upgrades (ShopPanel), Store (Loja), Rebirth, Índice, Chocando, Celeiro
+  UI/Panels/ Upgrades (ShopPanel), Store (Loja), Rebirth, Índice, Chocando, Cercado
   World/     WaveRenderer (ondas coloridas), WorldFx (portas VIP, anel, efeitos, tacada)
 ```
 

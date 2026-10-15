@@ -1,8 +1,13 @@
 --!strict
 --[[
-	MapBuilder: constrói o mapa inteiro por código (a partir do MapLayout).
-	  [ ÁREA INICIAL c/ celeiros ] -> [ ZONA SEGURA ] -> [ CORREDOR com buracos e zonas ] -> [ FIM ]
-	Os celeiros são construídos pelo BarnService.
+	MapBuilder: constrói o mapa inteiro por código (a partir do MapLayout), no visual do vídeo:
+	  • tudo de Plastic com STUDS (a textura clássica do Roblox)
+	  • área inicial de grama verde-limão com guarda-sóis e coqueiros; bases em cercados
+	  • corredor AZUL bem largo, paredes laranja altas com o nome de cada área pintado
+	  • trincheiras de areia de parede a parede, com barris vermelho/branco na beira
+	  • parede rosa no fim e a Torre do Tsunami atrás dela
+	  [ ÁREA INICIAL c/ cercados ] -> [ ZONA SEGURA ] -> [ CORREDOR com trincheiras ] -> [ FIM ]
+	Os cercados são construídos pelo BarnService.
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -19,42 +24,57 @@ local MapBuilder = {}
 local Map = GameConfig.Map
 
 local COLORS = {
-	Grass = Color3.fromRGB(110, 200, 75),
-	Wood = Color3.fromRGB(150, 100, 55),
-	WoodDark = Color3.fromRGB(110, 70, 40),
-	SafeZone = Color3.fromRGB(120, 225, 120),
 	White = Color3.fromRGB(255, 255, 255),
-	Leaves = Color3.fromRGB(60, 160, 60),
-	Trunk = Color3.fromRGB(110, 75, 45),
+	Wall = Color3.fromRGB(220, 115, 85),
+	WallTop = Color3.fromRGB(240, 150, 110),
+	Leaves = Color3.fromRGB(40, 175, 60),
+	Trunk = Color3.fromRGB(150, 105, 60),
 	Nest = Color3.fromRGB(125, 85, 45),
 	NestInner = Color3.fromRGB(205, 165, 95),
+	BarrelRed = Color3.fromRGB(230, 30, 40),
+	VipGreen = Color3.fromRGB(150, 255, 40),
+	Umbrellas = {
+		Color3.fromRGB(255, 70, 80),
+		Color3.fromRGB(170, 110, 255),
+		Color3.fromRGB(60, 150, 255),
+		Color3.fromRGB(255, 200, 40),
+	},
 }
 
-local RAINBOW = {
-	Color3.fromRGB(255, 90, 90),
-	Color3.fromRGB(255, 170, 60),
-	Color3.fromRGB(255, 235, 80),
-	Color3.fromRGB(110, 230, 110),
-	Color3.fromRGB(80, 170, 255),
-	Color3.fromRGB(180, 110, 255),
+local STUD_FACES = {
+	"TopSurface",
+	"FrontSurface",
+	"BackSurface",
+	"LeftSurface",
+	"RightSurface",
 }
 
-local function block(parent: Instance, name: string, size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material?): Part
+-- Peça ancorada. Com studs = true (padrão) usa Plastic com a textura de studs
+-- em todas as faces, igual aos mapas do vídeo.
+local function block(parent: Instance, name: string, size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material?, studs: boolean?): Part
 	local part = Instance.new("Part")
 	part.Name = name
 	part.Anchored = true
 	part.Size = size
 	part.CFrame = cframe
 	part.Color = color
-	part.Material = material or Enum.Material.SmoothPlastic
-	part.TopSurface = Enum.SurfaceType.Smooth
-	part.BottomSurface = Enum.SurfaceType.Smooth
+	part.Material = material or Enum.Material.Plastic
+	local useStuds = Map.Studs and studs ~= false and part.Material == Enum.Material.Plastic
+	for _, face in STUD_FACES do
+		(part :: any)[face] = if useStuds then Enum.SurfaceType.Studs else Enum.SurfaceType.Smooth
+	end
+	part.BottomSurface = if useStuds then Enum.SurfaceType.Inlet else Enum.SurfaceType.Smooth
 	part.Parent = parent
 	return part
 end
 
+-- Peça lisa (detalhes pequenos: barris, folhas, placas)
+local function smooth(parent: Instance, name: string, size: Vector3, cframe: CFrame, color: Color3, material: Enum.Material?): Part
+	return block(parent, name, size, cframe, color, material or Enum.Material.SmoothPlastic, false)
+end
+
 local function invisibleWall(parent: Instance, size: Vector3, cframe: CFrame)
-	local wall = block(parent, "InvisibleWall", size, cframe, COLORS.White)
+	local wall = smooth(parent, "InvisibleWall", size, cframe, COLORS.White)
 	wall.Transparency = 1
 	wall.CastShadow = false
 	wall.CanQuery = false
@@ -67,59 +87,76 @@ local function folder(parent: Instance, name: string): Folder
 	return f
 end
 
--- Cerca de madeira entre dois pontos (no chão)
-local function fence(parent: Instance, from: Vector3, to: Vector3)
-	local direction = to - from
-	local length = direction.Magnitude
-	if length < 1 then
-		return
-	end
-	local center = (from + to) / 2
-	local look = CFrame.lookAt(center, to)
-	for _, height in { 1.6, 3.2 } do
-		block(parent, "Rail", Vector3.new(0.4, 0.5, length), look + Vector3.new(0, height, 0), COLORS.Wood, Enum.Material.Wood)
-	end
-	local posts = math.max(1, math.floor(length / 10))
-	for i = 0, posts do
-		local point = from + direction * (i / posts)
-		block(parent, "Post", Vector3.new(0.8, 4.2, 0.8), CFrame.new(point + Vector3.new(0, 2.1, 0)), COLORS.WoodDark, Enum.Material.Wood)
-	end
+-- Texto "pintado" numa parede/chão: peça invisível colada na superfície
+local function paint(parent: Instance, size: Vector3, cframe: CFrame, face: Enum.NormalId, text: string, color: Color3, pixelsPerStud: number): TextLabel
+	local canvas = smooth(parent, "Pintura", size, cframe, COLORS.White)
+	canvas.Transparency = 1
+	canvas.CanCollide = false
+	canvas.CanQuery = false
+	canvas.CanTouch = false
+	canvas.CastShadow = false
+	return Billboards.SurfaceText(canvas, face, text, color, nil, pixelsPerStud)
 end
 
-local function tree(parent: Instance, position: Vector3, scale: number)
-	block(parent, "Trunk", Vector3.new(2, 10, 2) * scale, CFrame.new(position + Vector3.new(0, 5 * scale, 0)), COLORS.Trunk, Enum.Material.Wood)
-	local leaves = block(parent, "Leaves", Vector3.new(10, 10, 10) * scale, CFrame.new(position + Vector3.new(0, 12 * scale, 0)), COLORS.Leaves, Enum.Material.Grass)
-	leaves.Shape = Enum.PartType.Ball
+-- Coqueiro: tronco inclinado em gomos + folhas caídas
+local function palm(parent: Instance, position: Vector3, scale: number, lean: number)
+	local model = Instance.new("Model")
+	model.Name = "Coqueiro"
+	local top = position
+	for i = 1, 5 do
+		local tilt = CFrame.Angles(0, lean, math.rad(4 * i))
+		local segment = smooth(model, "Tronco", Vector3.new(2.2, 4, 2.2) * scale, CFrame.new(top) * tilt * CFrame.new(0, 2 * scale, 0), COLORS.Trunk:Lerp(Color3.new(0, 0, 0), (i % 2) * 0.12), Enum.Material.Wood)
+		top = (segment.CFrame * CFrame.new(0, 2 * scale, 0)).Position
+	end
+	for i = 1, 7 do
+		local angle = i / 7 * math.pi * 2
+		smooth(model, "Folha", Vector3.new(2.6, 0.4, 11) * scale, CFrame.new(top) * CFrame.Angles(0, angle, 0) * CFrame.Angles(math.rad(-25), 0, 0) * CFrame.new(0, 0, -5 * scale), COLORS.Leaves)
+	end
+	for i = 1, 3 do
+		local coconut = smooth(model, "Coco", Vector3.new(1.4, 1.4, 1.4) * scale, CFrame.new(top + Vector3.new(math.cos(i * 2.1), -1, math.sin(i * 2.1)) * scale), Color3.fromRGB(90, 60, 30))
+		coconut.Shape = Enum.PartType.Ball
+	end
+	model.Parent = parent
+end
+
+-- Guarda-sol de praia: poste + lona em dois discos coloridos
+local function umbrella(parent: Instance, position: Vector3, color: Color3)
+	local model = Instance.new("Model")
+	model.Name = "GuardaSol"
+	smooth(model, "Poste", Vector3.new(0.5, 9, 0.5), CFrame.new(position + Vector3.new(0, 4.5, 0)), COLORS.White)
+	local canopy = smooth(model, "Lona", Vector3.new(0.6, 11, 11), CFrame.new(position + Vector3.new(0, 8.6, 0)) * CFrame.Angles(0, 0, math.rad(90)), color)
+	canopy.Shape = Enum.PartType.Cylinder
+	local stripe = smooth(model, "Faixa", Vector3.new(0.7, 6, 6), CFrame.new(position + Vector3.new(0, 8.75, 0)) * CFrame.Angles(0, 0, math.rad(90)), COLORS.White)
+	stripe.Shape = Enum.PartType.Cylinder
+	local tip = smooth(model, "Ponta", Vector3.new(1, 1, 1), CFrame.new(position + Vector3.new(0, 9.4, 0)), color)
+	tip.Shape = Enum.PartType.Ball
+	model.Parent = parent
+end
+
+-- Barril vermelho e branco deitado na beira da trincheira
+local function barrel(parent: Instance, position: Vector3)
+	local body = smooth(parent, "Barril", Vector3.new(3.6, 2.6, 2.6), CFrame.new(position + Vector3.new(0, 1.3, 0)), COLORS.BarrelRed)
+	body.Shape = Enum.PartType.Cylinder
+	body.CanCollide = false
+	local band = smooth(parent, "BarrilFaixa", Vector3.new(1.2, 2.7, 2.7), CFrame.new(position + Vector3.new(0, 1.3, 0)), COLORS.White)
+	band.Shape = Enum.PartType.Cylinder
+	band.CanCollide = false
 end
 
 -- Ninho de "galhos" onde os ovos aparecem
 local function nest(parent: Instance, position: Vector3)
 	local model = Instance.new("Model")
 	model.Name = "Ninho"
-	local inner = block(model, "Palha", Vector3.new(0.5, 4, 4), CFrame.new(position + Vector3.new(0, 0.25, 0)) * CFrame.Angles(0, 0, math.rad(90)), COLORS.NestInner, Enum.Material.Fabric)
+	local inner = smooth(model, "Palha", Vector3.new(0.5, 4, 4), CFrame.new(position + Vector3.new(0, 0.25, 0)) * CFrame.Angles(0, 0, math.rad(90)), COLORS.NestInner, Enum.Material.Fabric)
 	inner.Shape = Enum.PartType.Cylinder
 	inner.CanCollide = false
 	for i = 1, 6 do
 		local angle = (i / 6) * math.pi * 2
 		local offset = Vector3.new(math.cos(angle) * 1.9, 0.45, math.sin(angle) * 1.9)
-		local stick = block(model, "Galho", Vector3.new(0.5, 0.55, 2.3), CFrame.lookAt(position + offset, position + offset + Vector3.new(-math.sin(angle), 0, math.cos(angle))) * CFrame.Angles(0, 0, math.rad(i * 25)), COLORS.Nest, Enum.Material.Wood)
+		local stick = smooth(model, "Galho", Vector3.new(0.5, 0.55, 2.3), CFrame.lookAt(position + offset, position + offset + Vector3.new(-math.sin(angle), 0, math.cos(angle))) * CFrame.Angles(0, 0, math.rad(i * 25)), COLORS.Nest, Enum.Material.Wood)
 		stick.CanCollide = false
 	end
 	model.Parent = parent
-end
-
--- Arco com placa (nome da zona) atravessando o corredor
-local function zoneArch(parent: Instance, z: number, title: string, subtitle: string, color: Color3)
-	local halfWidth = MapLayout.HalfWidth
-	local y = MapLayout.FloorY
-	for _, side in { -1, 1 } do
-		block(parent, "Pilar", Vector3.new(3, 38, 3), CFrame.new(side * (halfWidth - 1.5), y + 19, z), color:Lerp(Color3.new(0, 0, 0), 0.3))
-	end
-	local sign = block(parent, "Placa", Vector3.new(MapLayout.CorridorWidth - 6, 9, 1.5), CFrame.new(0, y + 33, z), color)
-	sign.Material = Enum.Material.SmoothPlastic
-	local text = title .. "\n" .. subtitle
-	Billboards.SurfaceText(sign, Enum.NormalId.Front, text, Color3.new(1, 1, 1), nil, 12)
-	Billboards.SurfaceText(sign, Enum.NormalId.Back, text, Color3.new(1, 1, 1), nil, 12)
 end
 
 -- ---------------------------------------------------------------------
@@ -132,49 +169,55 @@ local function buildBaseArea(root: Instance)
 	local depth = Map.BaseAreaDepth
 	local y = MapLayout.FloorY
 	local frontZ = MapLayout.SafeZoneStartZ
+	local thickness = Map.FloorThickness
+	local sandBorder = 22
 
-	block(base, "Grama", Vector3.new(halfWidth * 2, 4, depth), CFrame.new(0, y - 2, frontZ - depth / 2), COLORS.Grass, Enum.Material.Grass)
-
-	-- Cercas (com abertura para o corredor)
-	local corridorEdge = MapLayout.HalfWidth + Map.WallThickness
-	local corners = {
-		Vector3.new(-halfWidth, y, frontZ),
-		Vector3.new(-halfWidth, y, frontZ - depth),
-		Vector3.new(halfWidth, y, frontZ - depth),
-		Vector3.new(halfWidth, y, frontZ),
-	}
-	fence(base, Vector3.new(-corridorEdge, y, frontZ), corners[1])
-	fence(base, corners[1], corners[2])
-	fence(base, corners[2], corners[3])
-	fence(base, corners[3], corners[4])
-	fence(base, corners[4], Vector3.new(corridorEdge, y, frontZ))
-
-	-- Paredes invisíveis para ninguém sair do mapa
-	local h = 60
-	invisibleWall(base, Vector3.new(2, h, depth), CFrame.new(-halfWidth - 1, y + h / 2, frontZ - depth / 2))
-	invisibleWall(base, Vector3.new(2, h, depth), CFrame.new(halfWidth + 1, y + h / 2, frontZ - depth / 2))
-	invisibleWall(base, Vector3.new(halfWidth * 2, h, 2), CFrame.new(0, y + h / 2, frontZ - depth - 1))
-	local sideLength = halfWidth - corridorEdge
+	-- Grama verde-limão com studs e uma borda de areia (praia) nas laterais e no fundo
+	block(base, "Grama", Vector3.new(halfWidth * 2 - sandBorder * 2, thickness, depth - sandBorder), CFrame.new(0, y - thickness / 2, frontZ - (depth - sandBorder) / 2), Map.BaseGrassColor)
 	for _, side in { -1, 1 } do
-		invisibleWall(base, Vector3.new(sideLength, h, 2), CFrame.new(side * (corridorEdge + sideLength / 2), y + h / 2, frontZ + 1))
+		block(base, "Areia", Vector3.new(sandBorder, thickness, depth), CFrame.new(side * (halfWidth - sandBorder / 2), y - thickness / 2, frontZ - depth / 2), Map.SandColor)
 	end
+	block(base, "AreiaFundo", Vector3.new(halfWidth * 2 - sandBorder * 2, thickness, sandBorder), CFrame.new(0, y - thickness / 2, frontZ - depth + sandBorder / 2), Map.SandColor)
 
-	-- Árvores e fardos de feno para decorar
-	local treeSpots = {
-		Vector3.new(-195, y, -15),
-		Vector3.new(195, y, -15),
-		Vector3.new(-195, y, -185),
-		Vector3.new(195, y, -185),
-		Vector3.new(-60, y, -195),
-		Vector3.new(60, y, -195),
-		Vector3.new(-50, y, -20),
-		Vector3.new(50, y, -20),
-	}
-	for index, position in treeSpots do
-		tree(base, position, if index % 2 == 0 then 1.1 else 0.9)
+	-- Muros laranja em volta (com a abertura do corredor na frente)
+	local wallHeight = 34
+	local t = Map.WallThickness
+	local corridorEdge = MapLayout.HalfWidth + t
+	for _, side in { -1, 1 } do
+		block(base, "Muro", Vector3.new(t, wallHeight, depth + t), CFrame.new(side * (halfWidth + t / 2), y + wallHeight / 2, frontZ - depth / 2 - t / 2), COLORS.Wall)
+		local frontLength = halfWidth - corridorEdge + t
+		block(base, "MuroFrente", Vector3.new(frontLength, wallHeight, t), CFrame.new(side * (corridorEdge + frontLength / 2), y + wallHeight / 2, frontZ + t / 2), COLORS.Wall)
 	end
-	for _, position in { Vector3.new(-30, y, -40), Vector3.new(30, y, -40) } do
-		block(base, "Feno", Vector3.new(5, 3, 4), CFrame.new(position + Vector3.new(0, 1.5, 0)), Color3.fromRGB(230, 195, 90), Enum.Material.Fabric)
+	block(base, "MuroFundo", Vector3.new(halfWidth * 2 + t * 2, wallHeight, t), CFrame.new(0, y + wallHeight / 2, frontZ - depth - t / 2), COLORS.Wall)
+
+	-- Paredes invisíveis acima dos muros para ninguém sair do mapa
+	local h = 80
+	local top = y + wallHeight
+	invisibleWall(base, Vector3.new(2, h, depth), CFrame.new(-halfWidth - 1, top + h / 2, frontZ - depth / 2))
+	invisibleWall(base, Vector3.new(2, h, depth), CFrame.new(halfWidth + 1, top + h / 2, frontZ - depth / 2))
+	invisibleWall(base, Vector3.new(halfWidth * 2, h, 2), CFrame.new(0, top + h / 2, frontZ - depth - 1))
+
+	-- Praia: guarda-sóis e coqueiros na areia
+	local decor = folder(base, "Decoracao")
+	local spots = 7
+	for i = 0, spots - 1 do
+		local z = frontZ - 20 - i * (depth - 40) / (spots - 1)
+		for _, side in { -1, 1 } do
+			local x = side * (halfWidth - sandBorder / 2)
+			if i % 2 == 0 then
+				palm(decor, Vector3.new(x, y, z), 1, side * math.rad(90) + math.rad(i * 37))
+			else
+				umbrella(decor, Vector3.new(x, y, z), COLORS.Umbrellas[(i + (side + 1) / 2) % #COLORS.Umbrellas + 1])
+			end
+		end
+	end
+	for i = -3, 3 do
+		local x = i * 55
+		if i % 2 == 0 then
+			palm(decor, Vector3.new(x, y, frontZ - depth + sandBorder / 2), 1.1, math.rad(i * 50))
+		else
+			umbrella(decor, Vector3.new(x, y, frontZ - depth + sandBorder / 2), COLORS.Umbrellas[(i + 4) % #COLORS.Umbrellas + 1])
+		end
 	end
 end
 
@@ -190,16 +233,14 @@ local function buildSafeZone(root: Instance)
 	local length = endZ - startZ
 	local thickness = Map.FloorThickness
 
-	local floor = block(safe, "ChaoZonaSegura", Vector3.new(MapLayout.CorridorWidth, thickness, length), CFrame.new(0, y - thickness / 2, startZ + length / 2), COLORS.SafeZone)
-	Billboards.SurfaceText(floor, Enum.NormalId.Top, "ZONA SEGURA", Color3.new(1, 1, 1), nil, 7)
+	block(safe, "ChaoZonaSegura", Vector3.new(MapLayout.CorridorWidth, thickness, length), CFrame.new(0, y - thickness / 2, startZ + length / 2), Map.SandColor)
+	paint(safe, Vector3.new(MapLayout.CorridorWidth * 0.6, 0.1, length * 0.7), CFrame.new(0, y + 0.06, startZ + length / 2), Enum.NormalId.Top, "ZONA SEGURA", Color3.fromRGB(110, 255, 80), 6)
 
 	-- Paredes laterais da zona segura
 	local wallHeight = Map.WallHeight + thickness
 	for _, side in { -1, 1 } do
-		block(safe, "Parede", Vector3.new(Map.WallThickness, wallHeight, length), CFrame.new(side * (MapLayout.HalfWidth + Map.WallThickness / 2), y - thickness + wallHeight / 2, startZ + length / 2), Color3.fromRGB(150, 110, 70), Enum.Material.WoodPlanks)
+		block(safe, "Parede", Vector3.new(Map.WallThickness, wallHeight, length), CFrame.new(side * (MapLayout.HalfWidth + Map.WallThickness / 2), y - thickness + wallHeight / 2, startZ + length / 2), COLORS.Wall)
 	end
-
-	zoneArch(safe, startZ + 1, "FUJA DO TSUNAMI!", "Zona segura: aqui a onda não pega", Color3.fromRGB(60, 190, 80))
 end
 
 -- ---------------------------------------------------------------------
@@ -231,18 +272,47 @@ local function buildSideWall(parent: Instance, zone: MapLayout.Zone, side: numbe
 	for _, centerZ in openings do
 		local fromZ, toZ = cursor, centerZ - half
 		if toZ - fromZ > 0.05 then
-			block(parent, "Parede", Vector3.new(Map.WallThickness, wallHeight, toZ - fromZ), CFrame.new(wallX(side), bottom + wallHeight / 2, (fromZ + toZ) / 2), color, Enum.Material.Slate)
+			block(parent, "Parede", Vector3.new(Map.WallThickness, wallHeight, toZ - fromZ), CFrame.new(wallX(side), bottom + wallHeight / 2, (fromZ + toZ) / 2), color)
 		end
 		-- pedaço de parede em cima da porta
 		local lintelBottom = y + Map.VipAlcoveHeight
 		local lintelHeight = bottom + wallHeight - lintelBottom
-		block(parent, "ParedeTopo", Vector3.new(Map.WallThickness, lintelHeight, Map.VipAlcoveWidth), CFrame.new(wallX(side), lintelBottom + lintelHeight / 2, centerZ), color, Enum.Material.Slate)
+		block(parent, "ParedeTopo", Vector3.new(Map.WallThickness, lintelHeight, Map.VipAlcoveWidth), CFrame.new(wallX(side), lintelBottom + lintelHeight / 2, centerZ), color)
 		-- pedaço de parede abaixo do chão (fecha a lateral)
-		block(parent, "ParedeBase", Vector3.new(Map.WallThickness, thickness, Map.VipAlcoveWidth), CFrame.new(wallX(side), bottom + thickness / 2, centerZ), color, Enum.Material.Slate)
+		block(parent, "ParedeBase", Vector3.new(Map.WallThickness, thickness, Map.VipAlcoveWidth), CFrame.new(wallX(side), bottom + thickness / 2, centerZ), color)
 		cursor = centerZ + half
 	end
 	if zone.EndZ - cursor > 0.05 then
-		block(parent, "Parede", Vector3.new(Map.WallThickness, wallHeight, zone.EndZ - cursor), CFrame.new(wallX(side), bottom + wallHeight / 2, (cursor + zone.EndZ) / 2), color, Enum.Material.Slate)
+		block(parent, "Parede", Vector3.new(Map.WallThickness, wallHeight, zone.EndZ - cursor), CFrame.new(wallX(side), bottom + wallHeight / 2, (cursor + zone.EndZ) / 2), color)
+	end
+
+	-- Faixa no alto da parede com a cor da raridade da área
+	local rarity = zone.Rarity
+	local band = if rarity then rarity.Color else COLORS.WallTop
+	block(parent, "FaixaArea", Vector3.new(Map.WallThickness + 0.6, 4, zone.EndZ - zone.StartZ), CFrame.new(wallX(side), y + Map.WallHeight - 2, (zone.StartZ + zone.EndZ) / 2), band)
+end
+
+-- Nome da área pintado nas duas paredes, na cor da raridade (como no vídeo)
+local function paintAreaName(parent: Instance, zone: MapLayout.Zone)
+	local areaConfig = zone.Area
+	local rarity = zone.Rarity
+	local color = if rarity then rarity.Color else Color3.fromRGB(110, 255, 80)
+	local text = string.upper(areaConfig.Name)
+	if areaConfig.RecommendedSpeed ~= "" then
+		text ..= "\nVelocidade " .. areaConfig.RecommendedSpeed
+	end
+	-- logo depois da 1ª trincheira da área, bem no alto (acima do "VIP" dos nichos)
+	local z = zone.StartZ + 40
+	for _, hole in MapLayout.Holes do
+		if hole.ZoneIndex == zone.Index then
+			z = hole.EndZ + 40
+			break
+		end
+	end
+	for _, side in { -1, 1 } do
+		local x = side * (MapLayout.HalfWidth - 0.1)
+		local face = if side < 0 then Enum.NormalId.Right else Enum.NormalId.Left
+		paint(parent, Vector3.new(0.1, 26, 64), CFrame.new(x, MapLayout.FloorY + 48, z), face, text, color, 5)
 	end
 end
 
@@ -258,17 +328,21 @@ local function buildAlcove(parent: Instance, alcove: MapLayout.Alcove)
 	model.Name = "NichoVIP"
 	local gold = Color3.fromRGB(255, 205, 60)
 
-	block(model, "Chao", Vector3.new(outer - inner, 2, w), CFrame.new(s * (inner + outer) / 2, y - 1, z), Color3.fromRGB(70, 60, 90), Enum.Material.SmoothPlastic)
-	block(model, "Fundo", Vector3.new(1, h + 1, w + 2), CFrame.new(s * (outer + 0.5), y + (h + 1) / 2, z), gold, Enum.Material.SmoothPlastic)
+	block(model, "Chao", Vector3.new(outer - inner, 2, w), CFrame.new(s * (inner + outer) / 2, y - 1, z), Color3.fromRGB(70, 60, 90))
+	block(model, "Fundo", Vector3.new(1, h + 1, w + 2), CFrame.new(s * (outer + 0.5), y + (h + 1) / 2, z), gold)
 	for _, dz in { -1, 1 } do
-		block(model, "Lado", Vector3.new(outer - inner + 1, h + 1, 1), CFrame.new(s * ((inner + outer) / 2 + 0.5), y + (h + 1) / 2, z + dz * (w / 2 + 0.5)), gold, Enum.Material.SmoothPlastic)
+		block(model, "Lado", Vector3.new(outer - inner + 1, h + 1, 1), CFrame.new(s * ((inner + outer) / 2 + 0.5), y + (h + 1) / 2, z + dz * (w / 2 + 0.5)), gold)
 	end
-	block(model, "Teto", Vector3.new(outer - inner + 1, 1, w + 2), CFrame.new(s * ((inner + outer) / 2 + 0.5), y + h + 0.5, z), gold, Enum.Material.SmoothPlastic)
+	block(model, "Teto", Vector3.new(outer - inner + 1, 1, w + 2), CFrame.new(s * ((inner + outer) / 2 + 0.5), y + h + 0.5, z), gold)
 
-	local door = block(model, "PortaVIP", Vector3.new(0.5, h, w), CFrame.new(s * (inner + 0.25), y + h / 2, z), Color3.fromRGB(170, 220, 255), Enum.Material.Glass)
+	local door = smooth(model, "PortaVIP", Vector3.new(0.5, h, w), CFrame.new(s * (inner + 0.25), y + h / 2, z), Color3.fromRGB(170, 220, 255), Enum.Material.Glass)
 	door.Transparency = 0.55
 	CollectionService:AddTag(door, "VipDoor")
-	Billboards.SurfaceText(door, if s > 0 then Enum.NormalId.Left else Enum.NormalId.Right, "👑 VIP", gold, nil, 10)
+	local face = if s > 0 then Enum.NormalId.Left else Enum.NormalId.Right
+	Billboards.SurfaceText(door, face, "👑", gold, nil, 10)
+
+	-- "VIP" verde-limão grandão na parede, em cima da porta
+	paint(model, Vector3.new(0.1, 9, w + 10), CFrame.new(s * (inner - 0.1), y + h + 6, z), face, "VIP", COLORS.VipGreen, 8)
 
 	local light = Instance.new("PointLight")
 	light.Color = gold
@@ -281,7 +355,7 @@ end
 -- Pedestal no fim do corredor onde o Ovo Celestial aparece
 local function buildCelestialPedestal(parent: Instance)
 	local position = MapLayout.CelestialPosition
-	local base = block(parent, "PedestalCelestial", Vector3.new(1.2, 12, 12), CFrame.new(position + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 200, 235), Enum.Material.Neon)
+	local base = smooth(parent, "PedestalCelestial", Vector3.new(1.2, 12, 12), CFrame.new(position + Vector3.new(0, 0.6, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 200, 235), Enum.Material.Neon)
 	base.Shape = Enum.PartType.Cylinder
 	local billboard = Instance.new("BillboardGui")
 	billboard.Name = "Contagem"
@@ -314,35 +388,36 @@ local function buildTower(parent: Instance)
 	local width = MapLayout.CorridorWidth
 	local endZ = MapLayout.CorridorEndZ
 	local door = 16
-	local pink = Color3.fromRGB(255, 220, 250)
+	local pink = Map.EndWallColor
+	local roomPink = Color3.fromRGB(255, 220, 250)
 
 	-- parede do fim com uma porta no meio
 	local sideWidth = (width + Map.WallThickness * 2 - door) / 2
 	for _, side in { -1, 1 } do
-		block(parent, "ParedeFim", Vector3.new(sideWidth, wallHeight, Map.WallThickness), CFrame.new(side * (door / 2 + sideWidth / 2), y - thickness + wallHeight / 2, endZ + Map.WallThickness / 2), pink, Enum.Material.SmoothPlastic)
+		block(parent, "ParedeFim", Vector3.new(sideWidth, wallHeight, Map.WallThickness), CFrame.new(side * (door / 2 + sideWidth / 2), y - thickness + wallHeight / 2, endZ + Map.WallThickness / 2), pink)
 	end
 	local lintelHeight = wallHeight - thickness - 18
-	local lintel = block(parent, "ParedeFimTopo", Vector3.new(door, lintelHeight, Map.WallThickness), CFrame.new(0, y + 18 + lintelHeight / 2, endZ + Map.WallThickness / 2), pink, Enum.Material.SmoothPlastic)
-	Billboards.SurfaceText(lintel, Enum.NormalId.Front, "TORRE DO TSUNAMI", Color3.fromRGB(255, 120, 220), nil, 8)
+	block(parent, "ParedeFimTopo", Vector3.new(door, lintelHeight, Map.WallThickness), CFrame.new(0, y + 18 + lintelHeight / 2, endZ + Map.WallThickness / 2), pink)
+	paint(parent, Vector3.new(90, 16, 0.1), CFrame.new(0, y + 34, endZ - 0.1), Enum.NormalId.Front, "TORRE DO TSUNAMI", COLORS.White, 5)
 
 	-- sala da torre
 	local roomStart = endZ + Map.WallThickness
 	local roomLength = 50
-	block(parent, "ChaoTorre", Vector3.new(width, thickness, roomLength), CFrame.new(0, y - thickness / 2, roomStart + roomLength / 2), Color3.fromRGB(255, 235, 250), Enum.Material.Marble)
+	block(parent, "ChaoTorre", Vector3.new(width, thickness, roomLength), CFrame.new(0, y - thickness / 2, roomStart + roomLength / 2), roomPink)
 	for _, side in { -1, 1 } do
-		block(parent, "ParedeTorre", Vector3.new(Map.WallThickness, wallHeight, roomLength), CFrame.new(wallX(side), y - thickness + wallHeight / 2, roomStart + roomLength / 2), pink, Enum.Material.SmoothPlastic)
+		block(parent, "ParedeTorre", Vector3.new(Map.WallThickness, wallHeight, roomLength), CFrame.new(wallX(side), y - thickness + wallHeight / 2, roomStart + roomLength / 2), pink)
 	end
-	block(parent, "FundoTorre", Vector3.new(width + Map.WallThickness * 2, wallHeight, Map.WallThickness), CFrame.new(0, y - thickness + wallHeight / 2, roomStart + roomLength + Map.WallThickness / 2), pink, Enum.Material.SmoothPlastic)
+	block(parent, "FundoTorre", Vector3.new(width + Map.WallThickness * 2, wallHeight, Map.WallThickness), CFrame.new(0, y - thickness + wallHeight / 2, roomStart + roomLength + Map.WallThickness / 2), pink)
 
 	-- a torre em si (decorativa)
 	local center = Vector3.new(0, y, roomStart + roomLength / 2 + 6)
-	local tower = block(parent, "Torre", Vector3.new(70, 14, 14), CFrame.new(center + Vector3.new(0, 35, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 190, 235), Enum.Material.SmoothPlastic)
+	local tower = smooth(parent, "Torre", Vector3.new(70, 14, 14), CFrame.new(center + Vector3.new(0, 35, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 190, 235))
 	tower.Shape = Enum.PartType.Cylinder
 	for ring = 1, 4 do
-		local band = block(parent, "Faixa", Vector3.new(2, 15, 15), CFrame.new(center + Vector3.new(0, ring * 15, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 240, 160), Enum.Material.Neon)
+		local band = smooth(parent, "Faixa", Vector3.new(2, 15, 15), CFrame.new(center + Vector3.new(0, ring * 15, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 240, 160), Enum.Material.Neon)
 		band.Shape = Enum.PartType.Cylinder
 	end
-	local top = block(parent, "TopoTorre", Vector3.new(1, 22, 22), CFrame.new(center + Vector3.new(0, 70.5, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 215, 80), Enum.Material.Neon)
+	local top = smooth(parent, "TopoTorre", Vector3.new(1, 22, 22), CFrame.new(center + Vector3.new(0, 70.5, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(255, 215, 80), Enum.Material.Neon)
 	top.Shape = Enum.PartType.Cylinder
 end
 
@@ -371,44 +446,27 @@ local function buildCorridor(root: Instance)
 			local fromZ, toZ = segment[1], segment[2]
 			local length = toZ - fromZ
 			if length > 0.05 then
-				if areaConfig.Rainbow then
-					-- listras de arco-íris de 12 studs
-					local stripes = math.max(1, math.floor(length / 12))
-					local stripeLength = length / stripes
-					for i = 0, stripes - 1 do
-						local z0 = fromZ + i * stripeLength
-						local color = RAINBOW[(math.floor(z0 / 12) % #RAINBOW) + 1]
-						block(zoneFolder, "Chao", Vector3.new(width, thickness, stripeLength), CFrame.new(0, y - thickness / 2, z0 + stripeLength / 2), color, areaConfig.FloorMaterial)
-					end
-				else
-					block(zoneFolder, "Chao", Vector3.new(width, thickness, length), CFrame.new(0, y - thickness / 2, fromZ + length / 2), areaConfig.FloorColor, areaConfig.FloorMaterial)
-				end
+				block(zoneFolder, "Chao", Vector3.new(width, thickness, length), CFrame.new(0, y - thickness / 2, fromZ + length / 2), areaConfig.FloorColor, areaConfig.FloorMaterial)
 			end
 		end
 
 		for _, side in { -1, 1 } do
 			buildSideWall(zoneFolder, zone, side)
 		end
-
-		local rarity = zone.Rarity
-		local color = if rarity then rarity.Color else Color3.fromRGB(60, 190, 80)
-		local subtitle = if areaConfig.RecommendedSpeed ~= ""
-			then "Velocidade recomendada: " .. areaConfig.RecommendedSpeed
-			else "Corra e pegue ovos!"
-		zoneArch(zoneFolder, zone.StartZ + 1, areaConfig.Name, subtitle, color)
+		paintAreaName(zoneFolder, zone)
 	end
 
-	-- Trincheiras: fundo + rampa (rampa no lado da base, para sair indo para casa)
+	-- Trincheiras de areia: fundo + rampa (no lado da base, para sair indo para casa)
+	-- e barris vermelho/branco nas duas beiradas
 	local holesFolder = folder(corridor, "Trincheiras")
 	local depth = Map.HoleDepth
 	local rampLength = Map.HoleRampLength
+	local sand = Map.TrenchColor
 	for _, hole in MapLayout.Holes do
 		local zone = MapLayout.Zones[hole.ZoneIndex]
-		local floorColor = zone.Area.FloorColor
-		local bottomColor = floorColor:Lerp(Color3.new(0, 0, 0), 0.45)
 		local holeLength = hole.EndZ - hole.StartZ
 		local bottomThickness = thickness - depth
-		block(holesFolder, "FundoTrincheira", Vector3.new(width, bottomThickness, holeLength), CFrame.new(0, y - depth - bottomThickness / 2, hole.StartZ + holeLength / 2), bottomColor, Enum.Material.Slate)
+		block(holesFolder, "FundoTrincheira", Vector3.new(width, bottomThickness, holeLength), CFrame.new(0, y - depth - bottomThickness / 2, hole.StartZ + holeLength / 2), sand)
 
 		-- Rampa: de (StartZ, chão) até (StartZ + rampLength, fundo)
 		local angle = math.atan2(depth, rampLength)
@@ -418,7 +476,14 @@ local function buildCorridor(root: Instance)
 		local rotation = CFrame.Angles(angle, 0, 0)
 		local normal = rotation.UpVector
 		local center = topMiddle - normal * (slabThickness / 2)
-		block(holesFolder, "Rampa", Vector3.new(width, slabThickness, slabLength), CFrame.new(center) * rotation, floorColor:Lerp(Color3.new(0, 0, 0), 0.2), zone.Area.FloorMaterial)
+		block(holesFolder, "Rampa", Vector3.new(width, slabThickness, slabLength), CFrame.new(center) * rotation, sand:Lerp(Color3.new(0, 0, 0), 0.08), zone.Area.FloorMaterial)
+
+		local count = math.floor(width / Map.BarrelSpacing)
+		for i = 0, count - 1 do
+			local x = -width / 2 + Map.BarrelSpacing * (i + 0.5)
+			barrel(holesFolder, Vector3.new(x, y, hole.StartZ - 2))
+			barrel(holesFolder, Vector3.new(x + Map.BarrelSpacing / 2, y, hole.EndZ + 2))
+		end
 	end
 
 	local vipFolder = folder(corridor, "NichosVIP")
@@ -438,15 +503,15 @@ local function buildCorridor(root: Instance)
 	end
 end
 
--- Anel ciano da loja de upgrades (entre os celeiros e a zona segura)
+-- Anel ciano da loja de upgrades (entre os cercados e a zona segura)
 local function buildUpgradeRing(root: Instance)
 	local position = Map.UpgradeRingPosition
 	local radius = Map.UpgradeRingRadius
 	local cyan = Color3.fromRGB(40, 230, 255)
-	local ring = block(root, "AnelUpgrades", Vector3.new(0.3, radius * 2, radius * 2), CFrame.new(position + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90)), cyan, Enum.Material.Neon)
+	local ring = smooth(root, "AnelUpgrades", Vector3.new(0.3, radius * 2, radius * 2), CFrame.new(position + Vector3.new(0, 0.1, 0)) * CFrame.Angles(0, 0, math.rad(90)), cyan, Enum.Material.Neon)
 	ring.Shape = Enum.PartType.Cylinder
 	ring.CanCollide = false
-	local inner = block(root, "AnelMiolo", Vector3.new(0.35, radius * 2 - 2.4, radius * 2 - 2.4), CFrame.new(position + Vector3.new(0, 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(20, 120, 150), Enum.Material.SmoothPlastic)
+	local inner = smooth(root, "AnelMiolo", Vector3.new(0.35, radius * 2 - 2.4, radius * 2 - 2.4), CFrame.new(position + Vector3.new(0, 0.12, 0)) * CFrame.Angles(0, 0, math.rad(90)), Color3.fromRGB(20, 120, 150))
 	inner.Shape = Enum.PartType.Cylinder
 	inner.CanCollide = false
 	inner.Transparency = 0.3
@@ -482,15 +547,15 @@ local function buildUpgradeRing(root: Instance)
 end
 
 local function setupLighting()
-	Lighting.ClockTime = 14
-	Lighting.Brightness = 2.5
+	Lighting.ClockTime = 13
+	Lighting.Brightness = 3
 	Lighting.GlobalShadows = true
-	Lighting.OutdoorAmbient = Color3.fromRGB(150, 150, 160)
-	Lighting.Ambient = Color3.fromRGB(110, 110, 120)
+	Lighting.OutdoorAmbient = Color3.fromRGB(170, 170, 180)
+	Lighting.Ambient = Color3.fromRGB(120, 120, 130)
 	if not Lighting:FindFirstChildOfClass("Atmosphere") then
 		local atmosphere = Instance.new("Atmosphere")
-		atmosphere.Density = 0.2
-		atmosphere.Haze = 1
+		atmosphere.Density = 0.15
+		atmosphere.Haze = 0.6
 		atmosphere.Color = Color3.fromRGB(200, 225, 255)
 		atmosphere.Parent = Lighting
 	end

@@ -3,7 +3,7 @@
 	EggService: ovos nascendo no corredor.
 	  • cada área só nasce ovo da sua raridade (máximo + reposição no GameConfig)
 	  • o animal e a MUTAÇÃO são sorteados quando o ovo nasce
-	  • às vezes nasce um NINHO SURPRESA (abre no celeiro com mais sorte)
+	  • às vezes nasce um NINHO SURPRESA (abre no cercado com mais sorte)
 	  • Ovo Celestial: só 1 por vez, no pedestal do fim, a cada 15 min (com contagem)
 	  • ovos derrubados (morte ou tacada) ficam no chão por um tempo; qualquer um pega
 	  • "Pegar Ovo" = ProximityPrompt (segurar ~0,5 s), validado no servidor
@@ -145,7 +145,7 @@ local function onPickup(player: Player, record: WorldEgg)
 	if not CarryService.CanCarry(player) then
 		NotifyService.Notify(
 			player,
-			string.format("Você só consegue carregar %d ovo(s)! Leve até o seu celeiro 🏠", CarryService.Capacity(player)),
+			string.format("Você só consegue carregar %d ovo(s)! Leve até o seu cercado 🏠", CarryService.Capacity(player)),
 			"warning"
 		)
 		return
@@ -244,6 +244,7 @@ function EggService.DropItems(items: { Item }, position: Vector3)
 		local spot = position + Vector3.new(math.cos(angle) * 3, 0, math.sin(angle) * 3)
 		local groundY = if MapLayout.IsInHole(spot.Z) and spot.Y < MapLayout.FloorY - 2
 			then MapLayout.FloorY - GameConfig.Map.HoleDepth
+			elseif spot.Y > MapLayout.FloorY + 8 then spot.Y - 3 -- em cima de um deck do cercado
 			else MapLayout.FloorY
 		local record: WorldEgg = {
 			Model = Instance.new("Model"),

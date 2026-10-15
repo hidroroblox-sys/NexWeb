@@ -3,7 +3,7 @@
 	ShopService: compras, vendas e rebirth (sempre validados no servidor).
 	  BuyUpgrade("Speed", 1 | 5 | 10) -> pacotes de velocidade (como no original)
 	  BuyUpgrade("Carry", 1)          -> carregar +1 ovo (até 7)
-	  BuyUpgrade("Slots", 1)          -> +1 slot (o mesmo da placa do celeiro)
+	  BuyUpgrade("Slots", 1)          -> +1 slot (o mesmo da placa do cercado)
 	  LevelUp(slot, 1 | 10)           -> sobe o nível do animal (renda x1,25 por nível)
 	  SellAnimal(slot)                -> vende o animal daquele slot
 	  Rebirth()                       -> zera a Velocidade e aumenta o multiplicador de dinheiro

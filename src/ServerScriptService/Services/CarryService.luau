@@ -1,9 +1,9 @@
 --!strict
 --[[
-	CarryService: ovos que o jogador está carregando (ainda não estão no celeiro).
+	CarryService: ovos que o jogador está carregando (ainda não estão no cercado).
 	  • ficam visíveis nas costas do personagem (todo mundo vê)
 	  • se o jogador morrer, PERDE todos os ovos carregados
-	  • NÃO são salvos no DataStore (só o que está no celeiro é salvo)
+	  • NÃO são salvos no DataStore (só o que está no cercado é salvo)
 ]]
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -16,7 +16,7 @@ export type CarriedEgg = {
 	EggId: string,
 	AnimalId: string, -- o animal já vem sorteado desde que o ovo nasceu
 	Mutation: string?,
-	Lucky: boolean?, -- é um Ninho Surpresa (abre no celeiro)
+	Lucky: boolean?, -- é um Ninho Surpresa (abre no cercado)
 }
 
 local CarryService = {}
@@ -109,7 +109,7 @@ function CarryService.Add(player: Player, item: CarriedEgg): boolean
 	return true
 end
 
--- Tira o primeiro ovo da mão (para colocar no celeiro)
+-- Tira o primeiro ovo da mão (para colocar no cercado)
 function CarryService.TakeOne(player: Player): CarriedEgg?
 	local list = carried[player]
 	if not list or #list == 0 then

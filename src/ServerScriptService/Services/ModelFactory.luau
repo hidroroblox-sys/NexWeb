@@ -279,7 +279,7 @@ function ModelFactory.ApplyMutation(model: Model, mutationId: string?)
 end
 
 -- ---------------------------------------------------------------------
--- NINHO SURPRESA: caixa dourada com "?" (abre no celeiro)
+-- NINHO SURPRESA: caixa dourada com "?" (abre no cercado)
 -- ---------------------------------------------------------------------
 
 function ModelFactory.CreateLuckyNest(rarityId: string, scale: number?): Model

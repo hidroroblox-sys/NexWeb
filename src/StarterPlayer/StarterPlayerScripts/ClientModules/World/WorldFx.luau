@@ -1,7 +1,7 @@
 --!strict
 --[[
 	WorldFx: efeitos e textos do mundo calculados no cliente.
-	  • contagem "Choca em 2:30" + barra em cima dos ovos do celeiro
+	  • contagem "Choca em 2:30" + barra em cima dos ovos do cercado
 	  • "$/s" dos ovos do corredor (ou "???" se o animal não está no seu índice)
 	  • animação de "respirar/balançar" dos animais
 	  • efeitos: ovo chocando, coletar dinheiro, pegar ovo, levado pela onda
@@ -324,7 +324,7 @@ function WorldFx.Start()
 	localPlayer:GetAttributeChangedSignal("Pass_VIP"):Connect(updateAllDoors)
 	updateAllDoors()
 
-	-- Botões de celeiro (subir nível, comprar slot) só aparecem para o dono
+	-- Botões de cercado (subir nível, comprar slot) só aparecem para o dono
 	local function updatePrompt(prompt: Instance)
 		if not prompt:IsA("ProximityPrompt") then
 			return

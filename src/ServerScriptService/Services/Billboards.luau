@@ -83,7 +83,7 @@ function Billboards.WorldEgg(eggId: string, animalId: string, mutationId: string
 	return gui
 end
 
--- Ovo chocando no celeiro: nome + barra + "Choca em 2:30"
+-- Ovo chocando no cercado: nome + barra + "Choca em 2:30"
 function Billboards.Hatching(eggId: string, hatchAt: number, duration: number, mutationId: string?): BillboardGui
 	local egg = GameConfig.EggsById[eggId]
 	local rarity = GameConfig.RarityById[egg.Rarity]
@@ -124,17 +124,26 @@ function Billboards.Hatching(eggId: string, hatchAt: number, duration: number, m
 	return gui
 end
 
--- Animal no celeiro: nome, raridade (+mutação), $/s e nível
+-- Animal no cercado, na ordem do vídeo: nome, "Nível N" (roxo), raridade, mutação e $/s
 function Billboards.Animal(animalId: string, income: number, level: number, mutationId: string?): BillboardGui
 	local animal = GameConfig.AnimalsById[animalId]
 	local rarity = GameConfig.RarityById[animal.Rarity]
-	local gui = newBillboard("AnimalInfo", UDim2.fromScale(7, 3.2), 4, 60)
-	label(gui, "Name", animal.Name, Color3.new(1, 1, 1), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.28), UDim2.fromScale(0, 0))
 	local mutation, mutationColor = mutationText(mutationId)
-	local rarityText = if mutation then rarity.Name .. " • " .. mutation else rarity.Name
-	label(gui, "Rarity", rarityText, mutationColor or rarity.Color, Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.24), UDim2.fromScale(0, 0.27))
-	label(gui, "Income", Format.PerSecond(income), Color3.fromRGB(110, 255, 80), Enum.Font.FredokaOne, UDim2.fromScale(1, 0.26), UDim2.fromScale(0, 0.5))
-	label(gui, "Level", "Nv. " .. level, Color3.fromRGB(255, 220, 90), Enum.Font.LuckiestGuy, UDim2.fromScale(1, 0.22), UDim2.fromScale(0, 0.77))
+	local rows = if mutation then 5 else 4.1 -- soma das alturas das linhas abaixo
+	local gui = newBillboard("AnimalInfo", UDim2.fromScale(8, rows * 0.95), 3 + rows * 0.45, 70)
+	local row = 1 / rows
+	local index = 0
+	local function line(name: string, text: string, color: Color3, font: Enum.Font, scale: number)
+		label(gui, name, text, color, font, UDim2.fromScale(1, row * scale), UDim2.fromScale(0, row * index))
+		index += scale
+	end
+	line("Name", animal.Name, Color3.new(1, 1, 1), Enum.Font.LuckiestGuy, 1.2)
+	line("Level", "Nível " .. level, Color3.fromRGB(190, 90, 255), Enum.Font.LuckiestGuy, 0.9)
+	line("Rarity", rarity.Name, rarity.Color, Enum.Font.LuckiestGuy, 0.9)
+	if mutation and mutationColor then
+		line("Mutation", mutation, mutationColor, Enum.Font.LuckiestGuy, 0.9)
+	end
+	line("Income", Format.PerSecond(income), Color3.fromRGB(110, 255, 80), Enum.Font.LuckiestGuy, 1.1)
 	return gui
 end
 

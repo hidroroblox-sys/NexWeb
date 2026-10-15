@@ -44,8 +44,8 @@ export type Area = {
 	FloorMaterial: Enum.Material,
 	WallColor: Color3,
 	RecommendedSpeed: string, -- texto da placa
-	Rainbow: boolean?, -- chão com listras de arco-íris
 	TimedSpawn: boolean?, -- só nasce 1 ovo por vez, no timer (Celestial)
+	TrenchSpacing: number, -- distância entre trincheiras nesta área (cresce no fundo)
 }
 
 export type Egg = {
@@ -124,7 +124,7 @@ GameConfig.Rarities = {
 } :: { Rarity }
 
 -- =====================================================================
--- ÁREAS DO CORREDOR (da base para o fim). Trincheiras ficam ENTRE as áreas.
+-- ÁREAS DO CORREDOR (da base para o fim). Trincheiras no começo de cada área e a cada TrenchSpacing.
 -- Como no original: Início (sem ovos), Comum ... Cósmico (2), Secreto (3),
 -- Celestial (1 ovo por vez a cada 15 min). No fim: a Torre do Tsunami.
 -- =====================================================================
@@ -140,9 +140,11 @@ local function area(
 	floor: Color3,
 	material: Enum.Material,
 	wall: Color3,
-	speed: string
+	speed: string,
+	trenchSpacing: number
 ): Area
 	return {
+		TrenchSpacing = trenchSpacing,
 		Id = id,
 		Name = name,
 		Rarity = rarity,
@@ -160,22 +162,29 @@ end
 local rgb = Color3.fromRGB
 local M = Enum.Material
 
+-- Visual igual ao do vídeo: chão AZUL com studs em todo o corredor, trincheiras de areia,
+-- paredes laranja altas. A cor de cada área aparece na placa pintada na parede.
+-- O Início (logo depois da base) é de areia, como a praia do vídeo.
+local BLUE = rgb(0, 162, 250)
+local SAND = rgb(248, 228, 140)
+local WALL = rgb(220, 115, 85)
+local P = M.Plastic
+
 GameConfig.Areas = {
-	area("Inicio", "Início", nil, 60, 0, 0, 0, rgb(120, 200, 90), M.Grass, rgb(150, 110, 70), ""),
-	area("Comum", "Comum", "Comum", 150, 8, 4, 12, rgb(106, 190, 72), M.Grass, rgb(150, 110, 70), "0 - 20"),
-	area("Incomum", "Incomum", "Incomum", 180, 7, 5, 12, rgb(70, 150, 55), M.Grass, rgb(110, 80, 50), "20 - 40"),
-	area("Raro", "Raro", "Raro", 220, 6, 7, 12, rgb(232, 205, 140), M.Sand, rgb(200, 160, 100), "40 - 65"),
-	area("Epico", "Épico", "Epico", 260, 5, 9, 10, rgb(130, 130, 138), M.Slate, rgb(90, 90, 98), "65 - 85"),
-	area("Lendario", "Lendário", "Lendario", 300, 5, 12, 10, rgb(230, 242, 255), M.Snow, rgb(160, 205, 235), "85 - 110"),
-	area("Mitico", "Mítico", "Mitico", 320, 4, 15, 10, rgb(70, 165, 215), M.SmoothPlastic, rgb(30, 95, 150), "110 - 130"),
-	area("Cosmico1", "Cósmico I", "Cosmico", 280, 3, 18, 8, rgb(60, 32, 110), M.Slate, rgb(30, 15, 60), "130 - 150"),
-	area("Cosmico2", "Cósmico II", "Cosmico", 280, 3, 18, 8, rgb(80, 40, 140), M.Slate, rgb(40, 20, 80), "130 - 150"),
-	area("Secreto1", "Secreto I", "Secreto", 300, 2, 25, 8, rgb(200, 70, 30), M.CrackedLava, rgb(45, 30, 28), "150+"),
-	area("Secreto2", "Secreto II", "Secreto", 300, 2, 25, 8, rgb(180, 50, 25), M.CrackedLava, rgb(40, 25, 22), "150+"),
-	area("Secreto3", "Secreto III", "Secreto", 300, 2, 25, 8, rgb(160, 35, 20), M.CrackedLava, rgb(35, 20, 18), "160+"),
-	area("Celestial", "Celestial", "Celestial", 360, 0, 0, 0, rgb(255, 236, 200), M.SmoothPlastic, rgb(255, 220, 245), "180+"),
+	area("Inicio", "Início", nil, 120, 0, 0, 0, SAND, P, WALL, "", 120),
+	area("Comum", "Área Comum", "Comum", 300, 16, 3, 30, BLUE, P, WALL, "0 - 20", 100),
+	area("Incomum", "Área Incomum", "Incomum", 360, 14, 4, 28, BLUE, P, WALL, "20 - 40", 115),
+	area("Raro", "Área Rara", "Raro", 440, 12, 5, 26, BLUE, P, WALL, "40 - 65", 130),
+	area("Epico", "Área Épica", "Epico", 520, 10, 7, 22, BLUE, P, WALL, "65 - 85", 145),
+	area("Lendario", "Área Lendária", "Lendario", 600, 10, 9, 22, BLUE, P, WALL, "85 - 110", 160),
+	area("Mitico", "Área Mítica", "Mitico", 640, 8, 11, 20, BLUE, P, WALL, "110 - 130", 175),
+	area("Cosmico1", "Área Cósmica", "Cosmico", 560, 6, 14, 16, BLUE, P, WALL, "130 - 150", 190),
+	area("Cosmico2", "Área Cósmica II", "Cosmico", 560, 6, 14, 16, BLUE, P, WALL, "130 - 150", 200),
+	area("Secreto1", "Área Secreta", "Secreto", 600, 4, 20, 14, BLUE, P, WALL, "150+", 215),
+	area("Secreto2", "Área Secreta II", "Secreto", 600, 4, 20, 14, BLUE, P, WALL, "150+", 230),
+	area("Secreto3", "Área Secreta III", "Secreto", 600, 4, 20, 14, BLUE, P, WALL, "160+", 245),
+	area("Celestial", "Área Celestial", "Celestial", 720, 0, 0, 0, BLUE, P, WALL, "180+", 260),
 } :: { Area }
-GameConfig.Areas[#GameConfig.Areas].Rainbow = true
 GameConfig.Areas[#GameConfig.Areas].TimedSpawn = true
 
 -- =====================================================================
@@ -337,41 +346,48 @@ GameConfig.Celestial = {
 GameConfig.Map = {
 	Seed = 2024,
 	FloorY = 0,
-	FloorThickness = 14, -- precisa ser maior que HoleDepth
-	CorridorWidth = 64,
-	WallHeight = 60,
-	WallThickness = 4,
+	FloorThickness = 12, -- precisa ser maior que HoleDepth
+	CorridorWidth = 200, -- corredor bem largo, como no vídeo
+	WallHeight = 80,
+	WallThickness = 6,
 	SafeZoneStartZ = 0, -- onde começa a ZONA SEGURA (o corredor vai para +Z)
-	SafeZoneLength = 30,
+	SafeZoneLength = 40,
 
-	-- Trincheiras (entre as áreas; áreas longas ganham mais uma no meio)
-	HoleLength = 24,
-	HoleDepth = 10,
-	HoleRampLength = 13,
-	MidTrenchMinLength = 280,
+	-- Cores e textura (studs clássicos do Roblox, como no vídeo)
+	Studs = true,
+	TrenchColor = rgb(248, 228, 140), -- fundo de areia das trincheiras
+	BaseGrassColor = rgb(0, 225, 40), -- grama verde-limão da área inicial
+	SandColor = rgb(248, 228, 140),
+	EndWallColor = rgb(255, 80, 200),
+
+	-- Trincheiras: no começo de cada área e depois a cada TrenchSpacing da área
+	HoleLength = 18,
+	HoleDepth = 8,
+	HoleRampLength = 9,
+	BarrelSpacing = 25, -- barris vermelho/branco na beira das trincheiras
 
 	-- Nichos VIP de vidro nas paredes (um de cada lado por área)
-	VipAlcoveWidth = 12,
-	VipAlcoveDepth = 9,
+	VipAlcoveWidth = 14,
+	VipAlcoveDepth = 10,
 	VipAlcoveHeight = 12,
 
-	-- Área inicial com os celeiros (meio-círculo virado para o corredor)
-	BaseAreaHalfWidth = 215,
-	BaseAreaDepth = 205,
-	BarnArcRadius = 143,
+	-- Área inicial com as bases (cercados em meio-círculo virados para o corredor)
+	BaseAreaHalfWidth = 230,
+	BaseAreaDepth = 215,
+	BarnArcRadius = 150,
 	BarnArcAngle = 160,
-	BarnSize = Vector3.new(40, 13, 52),
-	FloorHeight = 14, -- altura de cada andar do celeiro
-	UpgradeRingPosition = Vector3.new(0, 0, -55), -- anel ciano da loja de upgrades
+	BarnSize = Vector3.new(36, 4, 46), -- cercado: largura, altura da cerca, fundo
+	FloorHeight = 14, -- altura de cada andar extra (deck de vidro)
+	UpgradeRingPosition = Vector3.new(0, 0, -60), -- anel ciano da loja de upgrades
 	UpgradeRingRadius = 8,
 
-	-- Slots dentro do celeiro (2 colunas x 5 fileiras por andar)
-	SlotColumnX = 13,
-	PadColumnX = 6,
-	FirstRowZ = -17,
-	RowSpacing = 7.5,
-	PenSize = Vector3.new(9, 0.4, 6.5),
-	PadSize = Vector3.new(3.5, 0.4, 3.5),
+	-- Slots dentro do cercado (2 colunas x 5 fileiras por andar)
+	SlotColumnX = 12.5,
+	PadColumnX = 5.5,
+	FirstRowZ = -15,
+	RowSpacing = 7.2,
+	PenSize = Vector3.new(8.5, 0.4, 6.2),
+	PadSize = Vector3.new(3.4, 0.4, 3.4),
 
 	ClearTerrain = true,
 }
@@ -385,14 +401,14 @@ GameConfig.Waves = {
 	MinInterval = 30, -- intervalo aleatório entre ondas (elas podem se sobrepor)
 	MaxInterval = 60,
 	WarningTime = 5, -- últimos segundos com aviso grande + bipes
-	Thickness = 30,
+	Thickness = 40,
 	HideDepth = 3, -- o jogador precisa estar pelo menos isso abaixo do chão
 	Types = {
-		{ Id = "SuperLenta", Name = "Super Lenta", Emoji = "😁", Speed = 85, Weight = 30, Color = rgb(140, 215, 255), Height = 30 },
-		{ Id = "Lenta", Name = "Lenta", Emoji = "🙂", Speed = 120, Weight = 25, Color = rgb(45, 115, 255), Height = 36 },
-		{ Id = "Media", Name = "Média", Emoji = "😐", Speed = 140, Weight = 20, Color = rgb(110, 230, 110), Height = 42 },
-		{ Id = "Rapida", Name = "Rápida", Emoji = "😠", Speed = 180, Weight = 15, Color = rgb(255, 55, 55), Height = 50 },
-		{ Id = "Relampago", Name = "Relâmpago", Emoji = "😈", Speed = 220, Weight = 10, Color = rgb(165, 60, 255), Height = 58, Glow = true },
+		{ Id = "SuperLenta", Name = "Super Lenta", Emoji = "😁", Speed = 85, Weight = 30, Color = rgb(140, 215, 255), Height = 42 },
+		{ Id = "Lenta", Name = "Lenta", Emoji = "🙂", Speed = 120, Weight = 25, Color = rgb(45, 115, 255), Height = 50 },
+		{ Id = "Media", Name = "Média", Emoji = "😐", Speed = 140, Weight = 20, Color = rgb(110, 230, 110), Height = 58 },
+		{ Id = "Rapida", Name = "Rápida", Emoji = "😠", Speed = 180, Weight = 15, Color = rgb(255, 55, 55), Height = 68 },
+		{ Id = "Relampago", Name = "Relâmpago", Emoji = "😈", Speed = 220, Weight = 10, Color = rgb(165, 60, 255), Height = 80, Glow = true },
 	} :: { WaveType },
 }
 

@@ -14,14 +14,17 @@ local CarryService = require(Services.CarryService)
 local DataService = require(Services.DataService)
 local EggService = require(Services.EggService)
 local GamePassService = require(Services.GamePassService)
+local IncomeTag = require(Services.IncomeTag)
 local MapBuilder = require(Services.MapBuilder)
 local MovementService = require(Services.MovementService)
 local NotifyService = require(Services.NotifyService)
+local RateLimit = require(Services.RateLimit)
 local ShopService = require(Services.ShopService)
 local SyncService = require(Services.SyncService)
 local TsunamiService = require(Services.TsunamiService)
 local Wallet = require(Services.Wallet)
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
+local Net = require(ReplicatedStorage.Shared.Net)
 
 -- O servidor controla quando o personagem nasce (depois de carregar os dados)
 Players.CharacterAutoLoads = false
@@ -64,8 +67,9 @@ local function onCharacterAdded(player: Player, character: Model)
 	end
 	MovementService.Apply(player)
 	BatService.Give(player)
+	task.spawn(IncomeTag.Attach, player, character)
 
-	-- Garante que nasce dentro do próprio celeiro
+	-- Garante que nasce dentro do próprio cercado
 	local root = character:WaitForChild("HumanoidRootPart", 10)
 	local spawnCFrame = BarnService.GetSpawnCFrame(player)
 	if root and spawnCFrame then
@@ -84,6 +88,22 @@ local function onCharacterAdded(player: Player, character: Model)
 	end)
 end
 
+-- Botão "Soltar": larga no chão todos os ovos que está carregando
+Net.DropCarried.OnServerEvent:Connect(function(player)
+	if not RateLimit.Check(player, "DropCarried", 0.5) or CarryService.Count(player) == 0 then
+		return
+	end
+	local character = player.Character
+	local humanoid = if character then character:FindFirstChildOfClass("Humanoid") else nil
+	local root = if character then character:FindFirstChild("HumanoidRootPart") else nil
+	if not humanoid or humanoid.Health <= 0 or not root or not root:IsA("BasePart") then
+		return
+	end
+	local items = CarryService.TakeAll(player)
+	EggService.DropItems(items, root.Position + root.CFrame.LookVector * 4)
+	NotifyService.Notify(player, string.format("Você soltou %d ovo(s).", #items), "info")
+end)
+
 local function onPlayerAdded(player: Player)
 	if #Players:GetPlayers() > GameConfig.Players.MaxPlayers then
 		player:Kick("Servidor cheio! Tente outro servidor.")
@@ -100,7 +120,7 @@ local function onPlayerAdded(player: Player)
 	CarryService.Setup(player)
 
 	if not BarnService.Assign(player) then
-		player:Kick("Não há celeiros livres neste servidor. Tente outro!")
+		player:Kick("Não há cercados livres neste servidor. Tente outro!")
 		return
 	end
 

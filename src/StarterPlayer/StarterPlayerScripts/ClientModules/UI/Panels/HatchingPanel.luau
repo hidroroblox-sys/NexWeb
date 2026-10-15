@@ -1,5 +1,5 @@
 --!strict
--- HatchingPanel: CHOCANDO — lista dos ovos que estão chocando no celeiro,
+-- HatchingPanel: CHOCANDO — lista dos ovos que estão chocando no cercado,
 -- com barra de progresso e tempo restante.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -39,7 +39,7 @@ function HatchingPanel.Create(gui: ScreenGui): UIKit.Panel
 
 	local empty = UIKit.Label(panel.Body, {
 		Name = "Empty",
-		Text = "Nenhum ovo chocando agora.\nPegue ovos no corredor e leve para o seu celeiro! 🥚",
+		Text = "Nenhum ovo chocando agora.\nPegue ovos no corredor e leve para o seu cercado! 🥚",
 		Color = Colors.Muted,
 		Stroke = 0,
 		Size = UDim2.new(1, -40, 0, 90),

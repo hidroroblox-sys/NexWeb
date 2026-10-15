@@ -1,5 +1,5 @@
 --!strict
--- BarnPanel: MEU CELEIRO — animais que você tem, quanto cada um dá por segundo
+-- BarnPanel: MEU CERCADO — animais que você tem, quanto cada um dá por segundo
 -- e o botão de vender (pede confirmação para animais raros).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -50,8 +50,8 @@ end
 
 function BarnPanel.Create(gui: ScreenGui): UIKit.Panel
 	local panel = UIKit.Panel(gui, {
-		Name = "CeleiroPanel",
-		Title = "MEU CELEIRO",
+		Name = "CercadoPanel",
+		Title = "MEU CERCADO",
 		Icon = "Barn",
 		Color = Colors.Purple,
 		DarkColor = Colors.PurpleDark,
@@ -66,7 +66,7 @@ function BarnPanel.Create(gui: ScreenGui): UIKit.Panel
 
 	local empty = UIKit.Label(panel.Body, {
 		Name = "Empty",
-		Text = "Nenhum animal ainda.\nChoque ovos no celeiro para ganhar animais! 🐣",
+		Text = "Nenhum animal ainda.\nChoque ovos no cercado para ganhar animais! 🐣",
 		Color = Colors.Muted,
 		Stroke = 0,
 		Size = UDim2.new(1, -40, 0, 90),
@@ -131,7 +131,7 @@ function BarnPanel.Create(gui: ScreenGui): UIKit.Panel
 			})
 			UIKit.Label(card, {
 				Name = "Income",
-				Text = string.format("%s  •  Nv. %d", Format.PerSecond(income), slot.Level),
+				Text = string.format("%s  •  Nível %d", Format.PerSecond(income), slot.Level),
 				Font = Theme.Fonts.Title,
 				Color = Colors.Money,
 				Size = UDim2.new(1, -384, 0, 28),

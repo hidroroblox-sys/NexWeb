@@ -1,28 +1,33 @@
 --!strict
 --[[
-	HUD: a interface principal, no estilo do Escape Tsunami For Brainrots.
+	HUD: a interface principal, igual à do vídeo do Escape Tsunami For Brainrots.
 
-	  ┌──────────────[ 🌊 PRÓXIMA ONDA 0:42 ]──────────────┐
-	  │        [🎒 1/1 ovos] [📍 Raro] [🌟 Celestial 9:12] │
-	  │ [🛒 LOJA   ]                         [🥚 CHOCANDO]│
-	  │ [🔁 REBIRTH]                         [🏠 CELEIRO ]│
-	  │ [📖 ÍNDICE ]                                      │
-	  │ [👟 Velocidade 24]                                │
-	  │ [💵 $1,250       ]                      ( PULAR ) │
-	  └───────────────────────────────────────────────────┘
-	  • Coluna da esquerda como no original: Loja (Robux), Rebirth (roxo), Índice
+	  ┌────────────────────[ Área Comum ]─────────────────────┐
+	  │ [Loja ][ VIP  ]     [🌊 Próxima onda 0:42]            │
+	  │ [Índice][Renascer]  [🌟 Celestial 9:12]               │
+	  │ [Chocando][Cercado]                                    │
+	  │                                                        │
+	  │ 👟 16   🎒 0/1          [🗑 Soltar]                     │
+	  │ 🔁 0   $1,250                                 ( PULAR ) │
+	  └────────────────────────────────────────────────────────┘
+	  • grade de 2 colunas de ladrilhos escuros na esquerda (Loja com borda dourada e "Novo")
+	  • status embaixo à esquerda: velocidade, ovos carregados, renascimentos e dinheiro
+	  • nome da área no topo; contador da onda logo abaixo (vira aviso grande nos últimos 5 s)
+	  • botão rosa "Soltar" aparece quando você carrega ovos (tecla G)
 	  • UPGRADES de Velocidade/Carregar abrem no anel ciano do lobby (HUD.OpenPanel)
-	  • Contador da próxima onda sempre no topo; sirene quando a onda nasce
 ]]
 
+local MarketplaceService = game:GetService("MarketplaceService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local UserInputService = game:GetService("UserInputService")
 local Workspace = game:GetService("Workspace")
 
 local Format = require(ReplicatedStorage.Shared.Format)
 local Formulas = require(ReplicatedStorage.Shared.Formulas)
 local GameConfig = require(ReplicatedStorage.Shared.GameConfig)
 local MapLayout = require(ReplicatedStorage.Shared.MapLayout)
+local Net = require(ReplicatedStorage.Shared.Net)
 local Types = require(ReplicatedStorage.Shared.Types)
 local PlayerData = require(script.Parent.Parent.PlayerData)
 local Sounds = require(script.Parent.Parent.Sounds)
@@ -44,8 +49,10 @@ local player = Players.LocalPlayer
 local Colors = Theme.Colors
 local Sizes = Theme.Sizes
 
-local BARN_RED = Color3.fromRGB(225, 75, 60)
-local BARN_RED_DARK = Color3.fromRGB(150, 40, 30)
+local GOLD = Color3.fromRGB(255, 190, 40)
+local DROP_PINK = Color3.fromRGB(255, 70, 140)
+local DROP_PINK_DARK = Color3.fromRGB(170, 20, 80)
+local TILE = 84 -- tamanho base de cada ladrilho
 
 local function attribute(name: string, default: number): number
 	local value = player:GetAttribute(name)
@@ -89,33 +96,36 @@ local function togglePanel(name: string)
 end
 
 -- ---------------------------------------------------------------------
--- Botões laterais
+-- Grade de ladrilhos (esquerda) e linhas de status (embaixo)
 -- ---------------------------------------------------------------------
 
-local function sideCluster(gui: ScreenGui, name: string, count: number, anchorX: number, positionX: UDim, offsetY: number): Frame
-	local size = Sizes.SideButton
-	local height = (size + Sizes.ButtonDepth) * count + Sizes.Gap * (count - 1)
-	local cluster = UIKit.Frame(gui, name, UDim2.fromOffset(size + 8, height), UDim2.new(positionX.Scale, positionX.Offset, 0.5, offsetY))
-	cluster.AnchorPoint = Vector2.new(anchorX, 0.5)
-	UIKit.ViewportScale(cluster)
-	UIKit.List(cluster, Sizes.Gap)
-	return cluster
+local function tileGrid(gui: ScreenGui): Frame
+	local gap = 8
+	local rows = 3
+	local grid = UIKit.Frame(gui, "Botoes", UDim2.fromOffset(TILE * 2 + gap, TILE * rows + (gap + 4) * (rows - 1)), UDim2.new(0, Sizes.Margin, 0.5, -24))
+	grid.AnchorPoint = Vector2.new(0, 0.5)
+	UIKit.ViewportScale(grid)
+	local layout = Instance.new("UIGridLayout")
+	layout.CellSize = UDim2.fromOffset(TILE, TILE)
+	layout.CellPadding = UDim2.fromOffset(gap, gap + 4)
+	layout.FillDirectionMaxCells = 2
+	layout.SortOrder = Enum.SortOrder.LayoutOrder
+	layout.Parent = grid
+	return grid
 end
 
-local function sideButton(cluster: Frame, order: number, icon: string, text: string, color: Color3, dark: Color3, onClick: () -> ()): UIKit.Button
-	return UIKit.Button({
-		Name = text,
-		Parent = cluster,
-		LayoutOrder = order,
-		Size = UDim2.fromOffset(Sizes.SideButton, Sizes.SideButton + Sizes.ButtonDepth),
-		Color = color,
-		DarkColor = dark,
-		Icon = icon,
-		Text = text,
-		Layout = "Stack",
-		MaxTextSize = 20,
-		OnClick = onClick,
-	})
+-- Linha de status: ícone + valor, fundo escuro arredondado
+local function statChip(parent: Instance, name: string, order: number, width: number, icon: string, color: Color3): UIKit.Pill
+	local pill = UIKit.Pill(parent, name, UDim2.fromOffset(width, 34), icon, "", color)
+	pill.Root.LayoutOrder = order
+	return pill
+end
+
+local function statRow(parent: Instance, order: number): Frame
+	local row = UIKit.Frame(parent, "Linha" .. order, UDim2.fromOffset(300, 34))
+	row.LayoutOrder = order
+	UIKit.List(row, 6, true, Enum.HorizontalAlignment.Left)
+	return row
 end
 
 -- ---------------------------------------------------------------------
@@ -131,8 +141,8 @@ type Banner = {
 }
 
 local function createBanner(parent: Instance): Banner
-	local root = UIKit.Frame(parent, "AvisoTsunami", UDim2.fromOffset(440, 58), nil, Colors.White)
-	root.LayoutOrder = 1
+	local root = UIKit.Frame(parent, "AvisoTsunami", UDim2.fromOffset(380, 50), nil, Colors.White)
+	root.LayoutOrder = 2
 	UIKit.Corner(root, UDim.new(0.5, 0))
 	UIKit.Stroke(root, 3, Colors.Ink, true)
 	local gradient = Instance.new("UIGradient")
@@ -146,7 +156,7 @@ local function createBanner(parent: Instance): Banner
 		Font = Theme.Fonts.Title,
 		Size = UDim2.new(1, -24, 1, -10),
 		Position = UDim2.fromOffset(12, 5),
-		MaxTextSize = 30,
+		MaxTextSize = 26,
 		Stroke = 2.5,
 		StrokeColor = Colors.Ink,
 	})
@@ -154,7 +164,7 @@ local function createBanner(parent: Instance): Banner
 		Name = "Sub",
 		Size = UDim2.new(1, -24, 0.36, 0),
 		Position = UDim2.new(0, 12, 0.6, -2),
-		MaxTextSize = 18,
+		MaxTextSize = 16,
 		Stroke = 2,
 		StrokeColor = Colors.Ink,
 	})
@@ -201,56 +211,138 @@ function HUD.Start()
 
 	ConfirmDialog.Start(gui)
 
-	-- Esquerda (como no original): Loja, Rebirth (roxo) e Índice
-	local left = sideCluster(gui, "Esquerda", 3, 0, UDim.new(0, Sizes.Margin), -10)
-	local storeButton = sideButton(left, 1, "Shop", "Loja", Colors.Yellow, Colors.YellowDark, function()
-		togglePanel("Store")
-	end)
-	local rebirthButton = sideButton(left, 2, "🔁", "Rebirth", Colors.Purple, Colors.PurpleDark, function()
-		togglePanel("Rebirth")
-	end)
-	local indexButton = sideButton(left, 3, "Index", "Índice", Colors.Blue, Colors.BlueDark, function()
-		togglePanel("Index")
-	end)
-	storeButton.SetBadge(nil)
+	-- Esquerda: grade de ladrilhos igual ao vídeo
+	local grid = tileGrid(gui)
+	local storeTile = UIKit.Tile({
+		Name = "Loja",
+		Parent = grid,
+		LayoutOrder = 1,
+		Icon = "Shop",
+		Text = "Loja",
+		Highlight = GOLD,
+		Tag = "Novo",
+		OnClick = function()
+			togglePanel("Store")
+		end,
+	})
+	UIKit.Tile({
+		Name = "VIP",
+		Parent = grid,
+		LayoutOrder = 2,
+		Icon = "👑",
+		Text = "VIP",
+		OnClick = function()
+			Sounds.Play("Click", 1, 0.4)
+			local pass = GameConfig.GamePassesByKey.VIP
+			if player:GetAttribute("Pass_VIP") == true then
+				Toasts.Show("Você já é VIP! Use as portas de vidro nas paredes 👑", "success")
+			elseif not pass or pass.Id == 0 then
+				HUD.OpenPanel("Store")
+			else
+				MarketplaceService:PromptGamePassPurchase(player, pass.Id)
+			end
+		end,
+	})
+	local indexButton = UIKit.Tile({
+		Name = "Indice",
+		Parent = grid,
+		LayoutOrder = 3,
+		Icon = "Index",
+		Text = "Índice",
+		OnClick = function()
+			togglePanel("Index")
+		end,
+	})
+	local rebirthButton = UIKit.Tile({
+		Name = "Renascer",
+		Parent = grid,
+		LayoutOrder = 4,
+		Icon = "🔁",
+		Text = "Renascer",
+		OnClick = function()
+			togglePanel("Rebirth")
+		end,
+	})
+	local hatchButton = UIKit.Tile({
+		Name = "Chocando",
+		Parent = grid,
+		LayoutOrder = 5,
+		Icon = "Hatching",
+		Text = "Chocando",
+		OnClick = function()
+			togglePanel("Hatching")
+		end,
+	})
+	UIKit.Tile({
+		Name = "Cercado",
+		Parent = grid,
+		LayoutOrder = 6,
+		Icon = "Barn",
+		Text = "Cercado",
+		OnClick = function()
+			togglePanel("Barn")
+		end,
+	})
+	storeTile.SetBadge(nil)
 
-	-- Direita: Chocando e Celeiro — acima do botão de pular do celular
-	local right = sideCluster(gui, "Direita", 2, 1, UDim.new(1, -Sizes.Margin), -50)
-	local hatchButton = sideButton(right, 1, "Hatching", "Chocando", Colors.Orange, Colors.OrangeDark, function()
-		togglePanel("Hatching")
-	end)
-	sideButton(right, 2, "Barn", "Celeiro", BARN_RED, BARN_RED_DARK, function()
-		togglePanel("Barn")
-	end)
-
-	-- Inferior esquerdo: velocidade + dinheiro
-	local stats = UIKit.Frame(gui, "Status", UDim2.fromOffset(250, 104), UDim2.new(0, Sizes.Margin, 1, -Sizes.Margin))
+	-- Inferior esquerdo: velocidade + ovos carregados / renascimentos + dinheiro
+	local stats = UIKit.Frame(gui, "Status", UDim2.fromOffset(300, 74), UDim2.new(0, Sizes.Margin, 1, -Sizes.Margin))
 	stats.AnchorPoint = Vector2.new(0, 1)
 	UIKit.ViewportScale(stats)
-	local statsLayout = UIKit.List(stats, 8, false, Enum.HorizontalAlignment.Left)
+	local statsLayout = UIKit.List(stats, 6, false, Enum.HorizontalAlignment.Left)
 	statsLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-	local speedPill = UIKit.Pill(stats, "Velocidade", UDim2.fromOffset(220, 44), "Speed", "16", Colors.White)
-	speedPill.Root.LayoutOrder = 1
-	local moneyPill = UIKit.Pill(stats, "Dinheiro", UDim2.fromOffset(250, 52), "Money", "$0", Colors.Money)
-	moneyPill.Root.LayoutOrder = 2
+	local row1 = statRow(stats, 1)
+	local speedPill = statChip(row1, "Velocidade", 1, 104, "Speed", Colors.White)
+	local carryPill = statChip(row1, "Carregando", 2, 110, "Carry", Colors.White)
+	local row2 = statRow(stats, 2)
+	local rebirthPill = statChip(row2, "Renascimentos", 1, 80, "🔁", Color3.fromRGB(255, 200, 60))
+	local moneyPill = statChip(row2, "Dinheiro", 2, 210, "Money", Colors.Money)
 
-	-- Topo: aviso do tsunami + linha de informações
-	local top = UIKit.Frame(gui, "Topo", UDim2.fromOffset(560, 104), UDim2.new(0.5, 0, 0, 6))
+	-- Topo: nome da área + contador da onda + Ovo Celestial
+	local top = UIKit.Frame(gui, "Topo", UDim2.fromOffset(520, 128), UDim2.new(0.5, 0, 0, 2))
 	top.AnchorPoint = Vector2.new(0.5, 0)
 	UIKit.ViewportScale(top)
-	local topLayout = UIKit.List(top, 6)
+	local topLayout = UIKit.List(top, 4)
 	topLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+	local areaLabel = UIKit.Label(top, {
+		Name = "Area",
+		Text = "",
+		Font = Theme.Fonts.Title,
+		Size = UDim2.fromOffset(520, 36),
+		MaxTextSize = 32,
+		Stroke = 3,
+		StrokeColor = Colors.Ink,
+		LayoutOrder = 1,
+	})
 	local banner = createBanner(top)
-
-	local infoRow = UIKit.Frame(top, "Info", UDim2.fromOffset(560, 36))
-	infoRow.LayoutOrder = 2
-	UIKit.List(infoRow, 8, true)
-	local carryPill = UIKit.Pill(infoRow, "Carregando", UDim2.fromOffset(150, 36), "Carry", "0/1", Colors.White)
-	carryPill.Root.LayoutOrder = 1
-	local zonePill = UIKit.Pill(infoRow, "Zona", UDim2.fromOffset(170, 36), "Pin", "", Colors.White)
-	zonePill.Root.LayoutOrder = 2
-	local celestialPill = UIKit.Pill(infoRow, "Celestial", UDim2.fromOffset(210, 36), "🌟", "", Color3.fromRGB(255, 160, 220))
+	local celestialPill = UIKit.Pill(top, "Celestial", UDim2.fromOffset(230, 30), "🌟", "", Color3.fromRGB(255, 160, 220))
 	celestialPill.Root.LayoutOrder = 3
+
+	-- Botão rosa "Soltar" (só aparece quando está carregando ovos)
+	local dropButton = UIKit.Button({
+		Name = "Soltar",
+		Parent = gui,
+		Size = UDim2.fromOffset(170, 58),
+		Position = UDim2.new(0.5, 0, 1, -Sizes.Margin - 70),
+		AnchorPoint = Vector2.new(0.5, 1),
+		Color = DROP_PINK,
+		DarkColor = DROP_PINK_DARK,
+		Icon = "🗑",
+		Text = "Soltar",
+		Layout = "Row",
+		MaxTextSize = 26,
+		OnClick = function()
+			Sounds.Play("Click", 0.9, 0.4)
+			Net.DropCarried:FireServer()
+		end,
+	})
+	UIKit.ViewportScale(dropButton.Holder)
+	dropButton.Holder.Visible = false
+	UserInputService.InputBegan:Connect(function(input, processed)
+		if not processed and input.KeyCode == Enum.KeyCode.G and dropButton.Holder.Visible then
+			Net.DropCarried:FireServer()
+		end
+	end)
 
 	-- -----------------------------------------------------------------
 	-- Dinheiro, velocidade, carga e bolinhas de notificação
@@ -285,26 +377,27 @@ function HUD.Start()
 
 	local function onSpeed()
 		local speed = Formulas.WalkSpeed(attribute("SpeedLevel", 0), player:GetAttribute("Pass_SpeedBoost") == true)
-		speedPill.Label.Text = string.format("Velocidade %d", speed)
+		speedPill.Label.Text = tostring(speed)
 		speedPill.Pop()
 		refreshBadges()
 	end
 	player:GetAttributeChangedSignal("SpeedLevel"):Connect(onSpeed)
 	player:GetAttributeChangedSignal("Pass_SpeedBoost"):Connect(onSpeed)
-	player:GetAttributeChangedSignal("Rebirths"):Connect(refreshBadges)
 	onSpeed()
+
+	local function onRebirths()
+		rebirthPill.Label.Text = tostring(attribute("Rebirths", 0))
+		refreshBadges()
+	end
+	player:GetAttributeChangedSignal("Rebirths"):Connect(onRebirths)
+	onRebirths()
 
 	local function onCarry()
 		local carrying = attribute("Carrying", 0)
 		local capacity = attribute("CarryCapacity", GameConfig.Carry.Start)
-		carryPill.Root.Visible = carrying > 0
-		if carrying >= capacity then
-			carryPill.Label.Text = string.format("%d/%d CHEIO!", carrying, capacity)
-			carryPill.Label.TextColor3 = Colors.Orange
-		else
-			carryPill.Label.Text = string.format("%d/%d ovos", carrying, capacity)
-			carryPill.Label.TextColor3 = Colors.White
-		end
+		dropButton.Holder.Visible = carrying > 0
+		carryPill.Label.Text = string.format("%d/%d", carrying, capacity)
+		carryPill.Label.TextColor3 = if carrying >= capacity then Colors.Orange else Colors.White
 		carryPill.Pop()
 	end
 	player:GetAttributeChangedSignal("Carrying"):Connect(onCarry)
@@ -351,19 +444,19 @@ function HUD.Start()
 				elseif z >= MapLayout.SafeZoneStartZ and z < MapLayout.CorridorStartZ then
 					text = "Zona Segura"
 					color = Colors.SafeGreen
+				elseif z < MapLayout.SafeZoneStartZ then
+					text = "Base"
+					color = Colors.White
 				elseif z > MapLayout.CorridorEndZ then
 					text = "Torre do Tsunami"
 					color = Color3.fromRGB(255, 160, 220)
 				end
 			end
-			zonePill.Root.Visible = text ~= nil
-			if text then
-				zonePill.Label.Text = text
-				zonePill.Label.TextColor3 = color
-				local stroke = zonePill.Label:FindFirstChildOfClass("UIStroke")
-				if stroke then
-					stroke.Color = Theme.StrokeFor(color)
-				end
+			areaLabel.Text = text or ""
+			areaLabel.TextColor3 = color
+			local stroke = areaLabel:FindFirstChildOfClass("UIStroke")
+			if stroke then
+				stroke.Color = Theme.StrokeFor(color)
 			end
 
 			local celestialAt = gameState:GetAttribute("CelestialAt")
@@ -436,7 +529,7 @@ function HUD.Start()
 					banner.Gradient.Color = ColorSequence.new(Colors.Ink)
 				end
 				banner.Main.Text = if remaining < math.huge
-					then "🌊 PRÓXIMA ONDA: " .. Format.Time(remaining)
+					then "🌊 Próxima onda: " .. Format.Time(remaining)
 					else "🌊 Mar calmo..."
 			end
 			task.wait(0.1)

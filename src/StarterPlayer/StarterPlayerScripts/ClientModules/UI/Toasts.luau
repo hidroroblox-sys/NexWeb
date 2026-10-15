@@ -77,7 +77,7 @@ function Toasts.Show(text: string, kind: string?, color: Color3?)
 end
 
 function Toasts.Start(gui: ScreenGui)
-	container = UIKit.Frame(gui, "Toasts", UDim2.fromOffset(460, 220), UDim2.new(0.5, 0, 0, 104))
+	container = UIKit.Frame(gui, "Toasts", UDim2.fromOffset(460, 220), UDim2.new(0.5, 0, 0.26, 0)) -- abaixo do topo do HUD
 	container.AnchorPoint = Vector2.new(0.5, 0)
 	container.ZIndex = 30 -- acima dos painéis
 	UIKit.ViewportScale(container)
